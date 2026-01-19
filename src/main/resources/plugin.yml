@@ -1,7 +1,9 @@
-name: ${project.artifactId}
-main: fr.k0bus.creativemanager.CreativeManager
-version: ${project.version}
-api-version: 1.16
+name: CreativeManager
+main: com.astaro.creativemanager.CreativeManager
+version: ${version}
+api-version: 1.21
+authors: [k0bus, Astaro212]
+description: "Refactored and optimized fork of k0bus CreativeManager"
 softdepend:
    - Slimefun
    - ChestShop

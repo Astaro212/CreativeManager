@@ -1,0 +1,81 @@
+plugins {
+    id 'idea'
+    id 'maven-publish'
+    id 'java'
+    id("xyz.jpenilla.run-paper") version "2.3.1"
+    id("com.gradleup.shadow") version "9.2.2"
+}
+
+group = "com.astaro.creativemanager"
+version = "0.1.1"
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+}
+
+repositories {
+    mavenCentral()
+    maven { url = "https://repo.papermc.io"}
+    maven {url = "https://jitpack.io"}
+    maven {url = "https://repo.minebench.de/"}
+    maven {url = "https://maven.enginehub.org/repo/"}
+    maven {url = "https://repo.codemc.org/repository/maven-public/"}
+    maven {url = "https://maven.citizensnpcs.co/repo"}
+    maven {url = "https://maven.devs.beer/"}
+    maven {url = "https://maven.k0bus.fr/spigot"}
+}
+
+dependencies {
+    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+
+    implementation("com.zaxxer:HikariCP:6.2.1")
+    implementation("org.mariadb.jdbc:mariadb-java-client:3.5.1")
+    implementation("com.mysql:mysql-connector-j:9.5.0")
+
+    implementation("fr.k0bus:K0busCore:1.0.2")
+    implementation("de.tr7zw:item-nbt-api:2.15.2")
+    implementation("org.bstats:bstats-bukkit:3.0.2")
+    implementation("org.jetbrains:annotations:24.1.0")
+
+    compileOnly("com.github.Slimefun:Slimefun4:RC-37")
+    compileOnly("com.acrobot.chestshop:chestshop:3.12")
+    compileOnly("com.sk89q.worldguard:worldguard-bukkit:7.0.13")
+    compileOnly("com.github.TechFortress:GriefPrevention:16.17.1")
+    compileOnly("com.github.Angeschossen:LandsAPI:6.29.12")
+    compileOnly("net.citizensnpcs:citizensapi:2.0.37-SNAPSHOT")
+    compileOnly("dev.lone:api-itemsadder:4.0.10")
+
+    implementation(platform("com.intellectualsites.bom:bom-newest:1.55"))
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core")
+    compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit")
+}
+
+tasks.processResources {
+        def props = [version: version]
+        inputs.properties props
+        filteringCharset 'UTF-8'
+        filesMatching('plugin.yml') {
+            expand props
+        }
+}
+
+tasks {
+    shadowJar {
+        archiveClassifier.set("")
+        var libPath = "fr.k0bus.creativemanager_libs"
+
+        relocate "fr.k0bus.k0buscore", "{$libPath}.k0buscore"
+        relocate "fr.k0bus.k0buscore_libs", "{$libPath}.k0buscore_libs"
+        relocate "org.bstats", "{$libPath}.bstats"
+        relocate "de.tr7zw.changeme", "{$libPath}.tr7zw.lib"
+
+        relocate "com.zaxxer.hikari", "{$libPath}.hikari"
+        relocate "org.mariadb.jdbc", "{$libPath}.mariadb"
+
+        exclude("dev.dbassett/**")
+    }
+
+    build {
+        dependsOn(shadowJar)
+    }
+}
