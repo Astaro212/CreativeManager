@@ -2,8 +2,8 @@ package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.data.BlockLog;
+import com.astaro.creativemanager.data.BlockLogService;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.PistonMoveReaction;
@@ -12,82 +12,62 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
-/**
- * Piston event listener.
- */
 public class PistonEvent implements Listener {
     private final CreativeManager plugin;
+    private final BlockLogService logService;
 
-    /**
-     * Instantiates a new Piston event.
-     *
-     * @param instance the instance.
-     */
     public PistonEvent(CreativeManager instance) {
-        plugin = instance;
+        this.plugin = instance;
+        this.logService = instance.getBlockLogService();
     }
 
-    /**
-     * On extend.
-     *
-     * @param event the event.
-     */
     @EventHandler(ignoreCancelled = true)
     public void onExtend(BlockPistonExtendEvent event) {
-        BlockFace pistonDirection = event.getDirection();
-        List<Block> blocks = new ArrayList<>(event.getBlocks());
-        this.pistonCheck(pistonDirection, blocks);
+        BlockFace direction = event.getDirection();
 
-        Block pistonHead = event.getBlock().getRelative(event.getDirection());
-        BlockLog pistonLog = plugin.getDataManager().getBlockFrom(event.getBlock().getLocation());
-        if(pistonLog != null && pistonLog.isCreative())
-        {
-            if(pistonHead.getType().equals(Material.PISTON_HEAD))
-            {
-                plugin.getDataManager().addBlock(new BlockLog(pistonHead, pistonLog.getPlayer()));
-            }
+        processPistonMove(direction, event.getBlocks());
+
+        Block piston = event.getBlock();
+        BlockLog pistonLog = logService.getLog(piston.getLocation());
+        if (pistonLog != null) {
+            Block head = piston.getRelative(direction);
+
+            logService.logBlock(head.getLocation(), pistonLog.playerUUID());
         }
     }
 
-    /**
-     * On retract.
-     *
-     * @param event the event.
-     */
     @EventHandler(ignoreCancelled = true)
     public void onRetract(BlockPistonRetractEvent event) {
-        BlockFace pistonDirection = event.getDirection();
-        List<Block> blocks = new ArrayList<>(event.getBlocks());
-        Block pistonHead = event.getBlock().getRelative(event.getDirection().getOppositeFace());
-        BlockLog pistonLog = plugin.getDataManager().getBlockFrom(event.getBlock().getLocation());
-        if(pistonLog != null && pistonLog.isCreative())
-        {
-            if(!pistonHead.getType().equals(Material.PISTON_HEAD))
-            {
-                plugin.getDataManager().removeBlock(pistonHead.getLocation());
-            }
+        BlockFace direction = event.getDirection();
+
+        processPistonMove(direction, event.getBlocks());
+
+        Block piston = event.getBlock();
+        BlockLog pistonLog = logService.getLog(piston.getLocation());
+        if (pistonLog != null) {
+            Block headLocation = piston.getRelative(direction);
+            logService.removeLog(headLocation.getLocation());
         }
-        this.pistonCheck(pistonDirection, blocks);
     }
 
-    private void pistonCheck(BlockFace blockFace, List<Block> blocks) {
-        Collections.reverse(blocks);
-        for (Block toMoveBlock : blocks) {
-            BlockLog blockLog = plugin.getDataManager().getBlockFrom(toMoveBlock.getLocation());
-            if (blockLog != null && blockLog.isCreative()) {
-                if(toMoveBlock.getPistonMoveReaction().equals(PistonMoveReaction.BREAK))
-                {
-                    toMoveBlock.setType(Material.AIR);
-                    plugin.getDataManager().removeBlock(toMoveBlock.getLocation());
-                }
-                else
-                {
-                    Location movedBlock = toMoveBlock.getRelative(blockFace).getLocation();
-                    plugin.getDataManager().moveBlock(toMoveBlock.getLocation(), movedBlock);
+    private void processPistonMove(BlockFace direction, List<Block> blocks) {
+        if (blocks.isEmpty()) return;
+
+        for (int i = blocks.size() - 1; i >= 0; i--) {
+            Block block = blocks.get(i);
+            Location oldLoc = block.getLocation();
+            BlockLog log = logService.getLog(oldLoc);
+
+            if (log != null) {
+                if (block.getPistonMoveReaction() == PistonMoveReaction.BREAK) {
+                    logService.removeLog(oldLoc);
+                } else {
+                    Location newLoc = block.getRelative(direction).getLocation();
+
+                    logService.removeLog(oldLoc);
+                    logService.logBlock(newLoc, log.playerUUID());
                 }
             }
         }

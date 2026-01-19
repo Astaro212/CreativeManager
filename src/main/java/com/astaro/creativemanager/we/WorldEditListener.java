@@ -7,75 +7,55 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.eventbus.Subscribe;
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.data.BlockLog;
 import org.bukkit.Bukkit;
-import org.bukkit.World;
-import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 
-import java.util.Iterator;
-
+import java.util.UUID;
 
 public class WorldEditListener {
 
-    private CreativeManager plugin;
+    private final CreativeManager plugin;
 
     public WorldEditListener(CreativeManager plugin) {
         this.plugin = plugin;
     }
 
     @Subscribe
-    public void onEditSessionEnd(EditSessionEvent e) {
+    public void onEditSession(EditSessionEvent e) {
+        // Логируем ДО внесения изменений
         if (e.getStage() != EditSession.Stage.BEFORE_CHANGE) return;
-
         if (e.getActor() == null || !e.getActor().isPlayer()) return;
 
-        Player p = Bukkit.getServer().getPlayer(e.getActor().getUniqueId());
-        World w = Bukkit.getWorld(e.getWorld().getName());
-        if (w == null || p == null) return;
+        UUID playerUuid = e.getActor().getUniqueId();
+        Player p = Bukkit.getPlayer(playerUuid);
 
-        try {
-            Region selection = WorldEdit.getInstance().getSessionManager().get(e.getActor()).getSelection();
-            if (selection == null) {
-                Bukkit.getLogger().warning("[WERC] Could not get selection for " + p.getName());
-                return;
-            }
+        if (p == null || !p.getGameMode().equals(org.bukkit.GameMode.CREATIVE)) return;
 
-            Bukkit.getLogger().info("[WERC] Starting batch logging for " + p.getName() + " in world " + w.getName());
+        String worldName = e.getWorld().getName();
 
-            int totalBlocks = 0;
-            int savedBlocks = 0;
 
-            Iterator<BlockVector3> iterator = selection.iterator();
-            while (iterator.hasNext()) {
-                BlockVector3 v = iterator.next();
-                totalBlocks++;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                Region selection = WorldEdit.getInstance().getSessionManager()
+                        .get(e.getActor()).getSelection(e.getWorld());
 
-                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-                    Block b = w.getBlockAt(v.getBlockX(), v.getBlockY(), v.getBlockZ());
+                if (selection == null) return;
 
-                    if (b.getType() != org.bukkit.Material.AIR) {
-                        BlockLog log = new BlockLog(b, p.getPlayer());
-                        log.setLocation(b.getLocation());
-                        plugin.getDataManager().save();
-                    }
-                });
+                if (plugin.getSettings().isDebug())
+                    plugin.getLogger().info("[WE-Log] Batch logging for " + p.getName() + " started...");
 
-                // Avoid overloading the main thread TaskQueue
-                if (totalBlocks % 1000 == 0) {
-                    try {
-                        Thread.sleep(20);
-                    } catch (InterruptedException ignored) {
-                    }
+                int totalBlocks = 0;
+                for (BlockVector3 v : selection) {
+                    plugin.getBlockLogService().logBlock(worldName, v.x(), v.y(), v.z(), playerUuid);
+                    totalBlocks++;
                 }
+
+                if (plugin.getSettings().isDebug())
+                    plugin.getLogger().info("[WE-Log] Finished. Queued: " + totalBlocks + " blocks.");
+
+            } catch (Exception ex) {
+                // Если сессия сброшена или регион не найден - просто выходим
             }
-            Bukkit.getLogger().info("[WERC] Logging finished. Processed: " + totalBlocks + " blocks.");
-
-
-        } catch (Exception ex) {
-            Bukkit.getLogger().severe("[WERC] Error during batch logging: " + ex.getMessage());
-            ex.printStackTrace();
-        }
+        });
     }
 }
-

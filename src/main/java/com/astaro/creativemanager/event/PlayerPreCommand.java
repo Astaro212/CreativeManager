@@ -23,15 +23,15 @@ public class PlayerPreCommand implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerCommand(PlayerCommandPreprocessEvent e)
     {
-        if(!CreativeManager.getSettings().getProtection(Protections.COMMANDS)) return;
+        if(!plugin.getSettings().getProtection(Protections.COMMANDS)) return;
         if(!e.getPlayer().getGameMode().equals(GameMode.CREATIVE)) return;
         if(e.getPlayer().hasPermission("creativemanager.bypass.blacklist.commands")) return;
         String cmd = e.getMessage().toLowerCase().substring(1);
-        List<String> list = CreativeManager.getSettings().getCommandBL();
-        if((CreativeManager.getSettings().getConfiguration().getString("list.mode.commands").equals("whitelist") && !SearchUtils.inList(list, cmd)) ||
-                (!CreativeManager.getSettings().getConfiguration().getString("list.mode.commands").equals("whitelist") && SearchUtils.inList(list, cmd))){
+        List<String> list = plugin.getSettings().getCommandBL();
+        if((plugin.getSettings().getConfig().getString("list.mode.commands").equals("whitelist") && !SearchUtils.inList(list, cmd)) ||
+                (!plugin.getSettings().getConfig().getString("list.mode.commands").equals("whitelist") && SearchUtils.inList(list, cmd))){
             e.setCancelled(true);
-            if(CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
+            if(plugin.getSettings().getConfig().getBoolean("send-player-messages"))
                 CMUtils.sendMessage(e.getPlayer(), "blacklist.commands");
         }
     }

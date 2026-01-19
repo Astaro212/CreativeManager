@@ -2,86 +2,80 @@ package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.data.BlockLog;
+import com.astaro.creativemanager.data.BlockLogService;
 import com.astaro.creativemanager.settings.Protections;
-import org.bukkit.Bukkit;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
-/**
- * Monster spawn event listener.
- */
 public class MonsterSpawnEvent implements Listener {
 
     private final CreativeManager plugin;
+    private final BlockLogService logService;
 
-    /**
-     * Instantiates a new Monster spawn event.
-     *
-     * @param plugin the plugin.
-     */
     public MonsterSpawnEvent(CreativeManager plugin) {
         this.plugin = plugin;
+        this.logService = plugin.getBlockLogService();
     }
 
-    /**
-     * On spawn.
-     *
-     * @param e the event.
-     */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onSpawn(CreatureSpawnEvent e) {
-        if (!CreativeManager.getSettings().getProtection(Protections.SPAWN_BUILD)) return;
-        Block baseBlock = e.getLocation().getBlock();
-        List<Block> blockList = new ArrayList<>();
-        if (e.getSpawnReason().equals(CreatureSpawnEvent.SpawnReason.BUILD_SNOWMAN)) {
-            // Check body
-            blockList.add(baseBlock);
-            blockList.add(baseBlock.getRelative(0, 1, 0));
-            blockList.add(baseBlock.getRelative(0, 2, 0));
-        } else if (e.getSpawnReason().equals(CreatureSpawnEvent.SpawnReason.BUILD_IRONGOLEM)) {
-            // Check body
-            blockList.add(baseBlock);
-            blockList.add(baseBlock.getRelative(0, 1, 0));
-            blockList.add(baseBlock.getRelative(0, 2, 0));
-            // Check arms
-            blockList.add(baseBlock.getRelative(0, 1, 1));
-            blockList.add(baseBlock.getRelative(0, 1, -1));
-            // Check arms
-            blockList.add(baseBlock.getRelative(1, 1, 0));
-            blockList.add(baseBlock.getRelative(-1, 1, 0));
-        } else if (e.getSpawnReason().equals(CreatureSpawnEvent.SpawnReason.BUILD_WITHER)) {
-            // Check body
-            blockList.add(baseBlock);
-            blockList.add(baseBlock.getRelative(0, 1, 0));
-            blockList.add(baseBlock.getRelative(0, 2, 0));
-            // Check arms / head
-            blockList.add(baseBlock.getRelative(0, 1, 1));
-            blockList.add(baseBlock.getRelative(0, 2, 1));
-            blockList.add(baseBlock.getRelative(0, 1, -1));
-            blockList.add(baseBlock.getRelative(0, 2, -1));
-            // Check arms / head
-            blockList.add(baseBlock.getRelative(1,1,0));
-            blockList.add(baseBlock.getRelative(1,2,0));
-            blockList.add(baseBlock.getRelative(-1,1,0));
-            blockList.add(baseBlock.getRelative(-1,2,0));
+
+        if (!plugin.getSettings().getProtection(Protections.SPAWN_BUILD)) return;
+        CreatureSpawnEvent.SpawnReason reason = e.getSpawnReason();
+
+        if (reason != CreatureSpawnEvent.SpawnReason.BUILD_SNOWMAN &&
+                reason != CreatureSpawnEvent.SpawnReason.BUILD_IRONGOLEM &&
+                reason != CreatureSpawnEvent.SpawnReason.BUILD_WITHER) {
+            return;
         }
-        for (Block block:blockList) {
-            BlockLog log = plugin.getDataManager().getBlockFrom(block.getLocation());
+
+        Block baseBlock = e.getLocation().getBlock();
+        Set<Block> blocksToCheck = new HashSet<>();
+
+        switch (reason) {
+            case BUILD_SNOWMAN -> {
+                addRelativeBlocks(blocksToCheck, baseBlock, new int[][]{{0,0,0}, {0,1,0}, {0,2,0}});
+            }
+            case BUILD_IRONGOLEM -> {
+                addRelativeBlocks(blocksToCheck, baseBlock, new int[][]{
+                        {0,0,0}, {0,1,0}, {0,2,0}, // Body
+                        {0,1,1}, {0,1,-1},         // Hands Z
+                        {1,1,0}, {-1,1,0}          // Hands X
+                });
+            }
+            case BUILD_WITHER -> {
+                addRelativeBlocks(blocksToCheck, baseBlock, new int[][]{
+                        {0,0,0}, {0,1,0}, {0,2,0}, // Body
+                        {0,1,1}, {0,2,1}, {0,1,-1}, {0,2,-1}, // Head Z
+                        {1,1,0}, {1,2,0}, {-1,1,0}, {-1,2,0}  // Head X
+                });
+            }
+        }
+
+        for (Block block : blocksToCheck) {
+            BlockLog log = logService.getLog(block.getLocation());
             if (log != null) {
-                Player player = Bukkit.getPlayer(log.getPlayer().getUniqueId());
-                if (player != null)
-                    if (player.hasPermission("creativemanager.bypass.spawn_build"))
-                        continue;
+
+                var player = plugin.getServer().getPlayer(log.playerUUID());
+                if (player != null && player.hasPermission("creativemanager.bypass.spawn_build")) {
+                    continue;
+                }
+
                 e.setCancelled(true);
                 return;
             }
+        }
+    }
+
+    private void addRelativeBlocks(Set<Block> set, Block base, int[][] offsets) {
+        for (int[] o : offsets) {
+            set.add(base.getRelative(o[0], o[1], o[2]));
         }
     }
 }

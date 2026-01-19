@@ -1,12 +1,12 @@
 package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.data.BlockLog;
+import com.astaro.creativemanager.data.BlockLogService;
 import com.astaro.creativemanager.settings.Protections;
+import com.astaro.creativemanager.settings.Settings;
 import com.astaro.creativemanager.utils.BlockUtils;
 import com.astaro.creativemanager.utils.CMUtils;
 import com.astaro.creativemanager.utils.SearchUtils;
-import fr.k0bus.k0buscore.utils.StringUtils;
 import org.bukkit.GameMode;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
@@ -16,105 +16,78 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockPlaceEvent;
 
-import java.util.HashMap;
 import java.util.List;
 
-/**
- * Player build event listener.
- */
 public class PlayerBuild implements Listener {
 	private final CreativeManager plugin;
+	private final Settings settings;
+	private final BlockLogService logService;
 
-	/**
-	 * Instantiates a new Player build.
-	 *
-	 * @param instance the instance.
-	 */
 	public PlayerBuild(CreativeManager instance) {
-		plugin = instance;
+		this.plugin = instance;
+		this.settings = instance.getSettings();
+		this.logService = instance.getBlockLogService();
 	}
 
-	/**
-	 * On place.
-	 *
-	 * @param e the event.
-	 */
-	@EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
-	public void checkBuild(BlockPlaceEvent e) {
+	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+	public void onBlockPlace(BlockPlaceEvent e) {
 		Player p = e.getPlayer();
-		if (p.getGameMode() == GameMode.CREATIVE) {
-			if (CreativeManager.getSettings().getProtection(Protections.BUILD) && !p.hasPermission("creativemanager.bypass.build")) {
-				if (CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-					CMUtils.sendMessage(p, "permission.build");
+		Block block = e.getBlock();
+		GameMode gm = p.getGameMode();
+
+		if (gm == GameMode.CREATIVE) {
+			if (settings.getProtection(Protections.BUILD) && !p.hasPermission("creativemanager.bypass.build")) {
+				sendCreativeMessage(p, "permission.build");
 				e.setCancelled(true);
+				return;
 			}
-			if (CreativeManager.getSettings().getProtection(Protections.BUILD_CONTAINER)  && !p.hasPermission("creativemanager.bypass.build-container"))
-			{
-				if(e.getBlock() instanceof Container container)
-				{
-						CMUtils.sendMessage(p, "permission.build-nbt");
+
+			if (isBlacklisted(p, block)) {
+				sendCreativeMessage(p, "blacklist.place");
+				e.setCancelled(true);
+				return;
+			}
+
+			if (settings.getProtection(Protections.BUILD_CONTAINER) && !p.hasPermission("creativemanager.bypass.build-container")) {
+				if (block.getState() instanceof Container container) {
 					container.getInventory().clear();
 					container.update();
-					if(!container.getInventory().isEmpty())
-						e.setCancelled(true);
+				}
+			}
+
+			if (!p.hasPermission("creativemanager.bypass.logged")) {
+				List<Block> structure = BlockUtils.getBlockStructure(block);
+				for (Block b : structure) {
+					logService.logBlock(b.getLocation(), p.getUniqueId());
 				}
 			}
 		}
-	}
-	/**
-	 * On place.
-	 *
-	 * @param e the event.
-	 */
-	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
-	public void checkBlackList(BlockPlaceEvent e)
-	{
-		Player p = e.getPlayer();
-		if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
-		List<String> blacklist = CreativeManager.getSettings().getPlaceBL();
-		String blockName = e.getBlock().getType().name().toLowerCase();
-		if(blacklist.isEmpty()) return;
-		if(p.hasPermission("creativemanager.bypass.blacklist.place")) return;
-		if(p.hasPermission("creativemanager.bypass.blacklist.place." + blockName)) return;
-		if((CreativeManager.getSettings().getConfiguration().getString("list.mode.place").equals("whitelist") && !SearchUtils.inList(blacklist, e.getBlock())) ||
-			(!CreativeManager.getSettings().getConfiguration().getString("list.mode.place").equals("whitelist") && SearchUtils.inList(blacklist, e.getBlock()))){
-			HashMap<String, String> replaceMap = new HashMap<>();
-			replaceMap.put("{BLOCK}", StringUtils.proper(e.getBlock().getType().name()));
-			if (CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-				CMUtils.sendMessage(p, "blacklist.place", replaceMap);
-			e.setCancelled(true);
-		}
-	}
-	/**
-	 * On place.
-	 *
-	 * @param e the event.
-	 */
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-	public void logBlock(BlockPlaceEvent e)
-	{
-		Player p = e.getPlayer();
-		if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
-		if(p.hasPermission("creativemanager.bypass.logged")) return;
-		List<Block> blocks = BlockUtils.getBlockStructure(e.getBlock());
-		for (Block block:blocks) {
-			plugin.getDataManager().addBlock(new BlockLog(block, e.getPlayer()));
-		}
-	}
-	/**
-	 * On place.
-	 *
-	 * @param e the event.
-	 */
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-	public void checkLog(BlockPlaceEvent e)
-	{
-		Player p = e.getPlayer();
-		if(p.getGameMode().equals(GameMode.CREATIVE)) return;
-		BlockLog blockLog = plugin.getDataManager().getBlockFrom(e.getBlock().getLocation());
-		if (blockLog != null)
-			if (blockLog.isCreative()) {
-				plugin.getDataManager().removeBlock(blockLog.getLocation());
+
+		else {
+			if (logService.isCreativeBlock(block.getLocation())) {
+				logService.removeLog(block.getLocation());
 			}
+		}
+	}
+
+	private boolean isBlacklisted(Player p, Block b) {
+		if (p.hasPermission("creativemanager.bypass.blacklist.place")) return false;
+
+		String blockName = b.getType().name().toLowerCase();
+		if (p.hasPermission("creativemanager.bypass.blacklist.place." + blockName)) return false;
+
+		List<String> blacklist = settings.getPlaceBL();
+		if (blacklist.isEmpty()) return false;
+
+		boolean isWhitelist = "whitelist".equalsIgnoreCase(settings.getConfig().getString("list.mode.place"));
+		boolean inList = SearchUtils.inList(blacklist, b);
+
+		return isWhitelist != inList;
+	}
+
+	private void sendCreativeMessage(Player p, String key) {
+		if (settings.getConfig().getBoolean("send-player-messages")) {
+			CMUtils.sendMessage(p, key);
+		}
 	}
 }

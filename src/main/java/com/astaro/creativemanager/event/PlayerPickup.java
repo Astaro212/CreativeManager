@@ -14,11 +14,14 @@ import org.bukkit.event.entity.EntityPickupItemEvent;
  */
 public class PlayerPickup implements Listener {
 
+    private final CreativeManager plugin;
+
     /**
      * Instantiates a new Player pickup.
      *
      */
-    public PlayerPickup() {
+    public PlayerPickup(CreativeManager plugin) {
+        this.plugin = plugin;
     }
 
     /**
@@ -28,7 +31,7 @@ public class PlayerPickup implements Listener {
      */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent e) {
-        if (!CreativeManager.getSettings().getProtection(Protections.PICKUP)) return;
+        if (!plugin.getSettings().getProtection(Protections.PICKUP)) return;
         if (!(e.getEntity() instanceof Player p)) return;
         if (!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if (!p.hasPermission("creativemanager.bypass.pickup")) {

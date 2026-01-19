@@ -2,6 +2,7 @@ package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.settings.Protections;
+import com.astaro.creativemanager.settings.Settings;
 import com.astaro.creativemanager.utils.CMUtils;
 import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
@@ -12,95 +13,72 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.EnumSet;
+import java.util.Set;
 
-/**
- * Inventory open listener.
- */
 public class InventoryOpen implements Listener {
 
-    /**
-     * Instantiates a new Inventory open.
-     *
-     */
-    CreativeManager plugin;
+    private final CreativeManager plugin;
+    private final Settings settings;
+
+    private static final Set<InventoryType> PROTECTED_TYPES = EnumSet.of(
+            InventoryType.CHEST,
+            InventoryType.FURNACE,
+            InventoryType.BLAST_FURNACE,
+            InventoryType.SMOKER,
+            InventoryType.BARREL,
+            InventoryType.BEACON,
+            InventoryType.BREWING,
+            InventoryType.DISPENSER,
+            InventoryType.DROPPER,
+            InventoryType.HOPPER,
+            InventoryType.SHULKER_BOX,
+            InventoryType.LECTERN,
+            InventoryType.ENDER_CHEST
+    );
+
     public InventoryOpen(CreativeManager plugin) {
         this.plugin = plugin;
+        this.settings = plugin.getSettings();
     }
 
-    /**
-     * On inventory open.
-     *
-     * @param e the event.
-     */
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onInventoryOpen(InventoryOpenEvent e) {
-        if (e.getPlayer() instanceof Player p) {
-            if (p.getGameMode().equals(GameMode.CREATIVE) && CreativeManager.getSettings().getProtection(Protections.CONTAINER)) {
-                if (isProtectedChest(e.getInventory())) {
-                    if (!p.hasPermission("creativemanager.bypass.container")) {
-                        if (CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-                            CMUtils.sendMessage(p, "permission.container");
-                        e.setCancelled(true);
-                    }
-                }
+        if (!(e.getPlayer() instanceof Player p)) return;
+        if (p.getGameMode() != GameMode.CREATIVE) return;
+
+        if (settings.getProtection(Protections.CONTAINER) && isProtectedChest(e.getInventory())) {
+            if (!p.hasPermission("creativemanager.bypass.container")) {
+                cancelEvent(e, p, "permission.container");
+                return;
             }
         }
-    }
 
-    /**
-     * On inventory open.
-     *
-     * @param e the event.
-     */
-    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
-    public void onGuiOpen(InventoryOpenEvent e) {
-        if (e.getPlayer() instanceof Player p) {
-            if (p.getGameMode().equals(GameMode.CREATIVE) && CreativeManager.getSettings().getProtection(Protections.GUI)) {
+        if (settings.getProtection(Protections.GUI)) {
+            if (!PROTECTED_TYPES.contains(e.getInventory().getType())) {
                 if (!p.hasPermission("creativemanager.bypass.gui")) {
-                    if (CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-                        CMUtils.sendMessage(p, "permission.gui");
-                    e.setCancelled(true);
+                    cancelEvent(e, p, "permission.gui");
                 }
             }
         }
     }
 
-    /**
-     * Whether chest is protected.
-     *
-     * @param inventory the inventory.
-     * @return True if yes, otherwise false.
-     */
-    public boolean isProtectedChest(Inventory inventory) {
-        if (inventory.getType().equals(InventoryType.ENDER_CHEST)) return true;
-        if (getProtectedType().contains(inventory.getType())) {
-            if (inventory.getHolder() != null)
-                return inventory.getHolder().getClass().toString().contains("org.bukkit");
+    private void cancelEvent(InventoryOpenEvent e, Player p, String messageKey) {
+        if (settings.isSendMessageEnabled()) {
+            CMUtils.sendMessage(p, messageKey);
         }
-        return false;
+        e.setCancelled(true);
     }
 
-    /**
-     * Gets protected type.
-     *
-     * @return the protected type.
-     */
-    public List<InventoryType> getProtectedType() {
-        List<InventoryType> typeList = new ArrayList<>();
-        try {typeList.add(InventoryType.CHEST);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.FURNACE);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.BLAST_FURNACE);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.SMOKER);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.BARREL);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.BEACON);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.BREWING);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.DISPENSER);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.DROPPER);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.HOPPER);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.SHULKER_BOX);}catch (NoSuchFieldError ignored){}
-        try {typeList.add(InventoryType.LECTERN);}catch (NoSuchFieldError ignored){}
-        return typeList;
+    private boolean isProtectedChest(Inventory inventory) {
+        InventoryType type = inventory.getType();
+
+        if (!PROTECTED_TYPES.contains(type)) return false;
+        if (inventory.getHolder() != null) {
+            String holderClass = inventory.getHolder().getClass().getName();
+            return holderClass.startsWith("org.bukkit") || holderClass.startsWith("net.minecraft");
+        }
+
+        return type == InventoryType.ENDER_CHEST;
     }
 }

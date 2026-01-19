@@ -23,9 +23,9 @@ public class BlockEvent implements Listener {
     private final CreativeManager plugin;
     private final BlockLogService logService;
 
-    public BlockEvent(CreativeManager cm) {
+    public BlockEvent(CreativeManager cm, BlockLogService logService) {
         this.plugin = cm;
-        this.logService = cm.getBlockLogService();
+        this.logService = logService;
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)

@@ -19,18 +19,15 @@ public class BlockBreakListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
-    public void onBlockBreak(BlockBreakEvent event) {
-
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onEntityExplode(EntityExplodeEvent e) {
         e.blockList().forEach(block -> {
-            BlockLog log = plugin.getDataManager().getBlockFrom(block.getLocation());
+            BlockLog log = plugin.getBlockLogService().getLog(block.getLocation());
             if (log != null) {
-                Bukkit.getLogger().info("[WERC DEBUG] Block found and deleted.");
+                if(plugin.getSettings().isDebug()) {
+                    Bukkit.getLogger().info("[CM DEBUG] Block found and deleted.");
+                }
                 block.setType(Material.AIR);
-                plugin.getDataManager().delete(log);
+                plugin.getBlockLogService().removeLog(block.getLocation());
             }
         });
     }

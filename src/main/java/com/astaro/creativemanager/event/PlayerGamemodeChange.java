@@ -3,119 +3,89 @@ package com.astaro.creativemanager.event;
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.manager.InventoryManager;
 import com.astaro.creativemanager.settings.Protections;
+import com.astaro.creativemanager.settings.Settings;
 import com.astaro.creativemanager.utils.CMUtils;
-import fr.k0bus.k0buscore.utils.ItemsUtils;
-import fr.k0bus.k0buscore.utils.StringUtils;
 import org.bukkit.GameMode;
-import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerGameModeChangeEvent;
-import org.bukkit.potion.PotionEffect;
 
 import java.util.HashMap;
+import java.util.Map;
 
-/**
- * Player gamemode change event.
- */
 public class PlayerGamemodeChange implements Listener {
 	private final CreativeManager plugin;
+	private final Settings settings;
+	private final InventoryManager inventoryManager;
 
-	/**
-	 * Instantiates a new Player gamemode change.
-	 *
-	 * @param instance the instance.
-	 */
-	public PlayerGamemodeChange(CreativeManager instance) {
-		plugin = instance;
+	public PlayerGamemodeChange(CreativeManager instance, InventoryManager manager) {
+		this.plugin = instance;
+		this.settings = instance.getSettings();
+		this.inventoryManager = manager;
 	}
 
-	/**
-	 * On gm change.
-	 *
-	 * @param e the event.
-	 */
 	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
 	public void onGMChange(PlayerGameModeChangeEvent e) {
-		try{
-			if(!e.getPlayer().getOpenInventory().getType().equals(InventoryType.CRAFTING))
-				e.getPlayer().closeInventory();
-		}catch (Error ignored) {
-			e.getPlayer().closeInventory();
-		}
-		if(e.getNewGameMode().equals(e.getPlayer().getGameMode())) return;
-		if(CreativeManager.getSettings().getConfiguration().getBoolean("stop-inventory-save")) return;
 		Player p = e.getPlayer();
+
+		// Закрываем инвентарь при смене GM (защита от дюпа через открытые окна)
+		if (!p.getOpenInventory().getType().equals(InventoryType.CRAFTING)) {
+			p.closeInventory();
+		}
+
+		if (e.getNewGameMode() == p.getGameMode()) return;
+		if (settings.getConfig().getBoolean("stop-inventory-save")) return;
+
 		if (!p.hasPermission("creativemanager.bypass.inventory")) {
-			InventoryManager im = new InventoryManager(p, plugin);
+			GameMode gmFrom = getTargetGamemode(p.getGameMode());
+			GameMode gmTo = getTargetGamemode(e.getNewGameMode());
 
-			GameMode gmFrom = getGamemodeFromSetting(p.getGameMode());
-			GameMode gmTo = getGamemodeFromSetting(e.getNewGameMode());
-
-			if(!gmFrom.equals(gmTo))
-			{
-				im.saveInventory(gmFrom);
-				im.loadInventory(gmTo);
+			if (!gmFrom.equals(gmTo)) {
+				// Асинхронное сохранение и загрузка
+				inventoryManager.saveInventoryAsync(p, gmFrom)
+						.thenRun(() -> inventoryManager.loadInventoryAsync(p, gmTo));
 			}
 
-			if(CreativeManager.getSettings().getProtection(Protections.ARMOR) && !p.hasPermission("creativemanager.bypass.armor"))
-			{
-				if(e.getNewGameMode().equals(GameMode.CREATIVE))
-				{
-					ConfigurationSection cs = CreativeManager.getSettings().getConfiguration().getConfigurationSection("creative_armor");
-					if(cs != null)
-					{
-						p.getInventory().setHelmet(ItemsUtils.fromConfiguration(cs.getConfigurationSection("helmet"), e.getPlayer()));
-						p.getInventory().setChestplate(ItemsUtils.fromConfiguration(cs.getConfigurationSection("chestplate"), e.getPlayer()));
-						p.getInventory().setLeggings(ItemsUtils.fromConfiguration(cs.getConfigurationSection("leggings"), e.getPlayer()));
-						p.getInventory().setBoots(ItemsUtils.fromConfiguration(cs.getConfigurationSection("boots"), e.getPlayer()));
-					}
+			// Установка "Креативной брони"
+			handleCreativeArmor(p, e.getNewGameMode());
+
+			// Сообщение о смене
+			if (settings.isSendMessageEnabled()) {
+				HashMap<String, String> placeholders = new HashMap<>();
+				placeholders.put("{GAMEMODE}", e.getNewGameMode().name().toLowerCase());
+				CMUtils.sendMessage(p, "inventory.change", placeholders);
+			}
+		}
+
+		// Очистка эффектов
+		handleEffectRemoval(p);
+	}
+
+		private void handleCreativeArmor(Player p, GameMode newGM) {
+			if (newGM == GameMode.CREATIVE && settings.getProtection(Protections.ARMOR)) {
+				if (!p.hasPermission("creativemanager.bypass.armor")) {
+					inventoryManager.applyCreativeArmor(p);
 				}
 			}
-			HashMap<String, String> replaceMap = new HashMap<>();
-			replaceMap.put("{GAMEMODE}", StringUtils.proper(e.getNewGameMode().name()));
-			if(CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-				CMUtils.sendMessage(p, "inventory.change", replaceMap);
+		}
+
+	private void handleEffectRemoval(Player p) {
+		if (settings.getProtection(Protections.REMOVE_EFFECTS) &&
+				!p.hasPermission("creativemanager.bypass.effects-cleaner")) {
+			p.getActivePotionEffects().forEach(effect -> p.removePotionEffect(effect.getType()));
 		}
 	}
 
-	private GameMode getGamemodeFromSetting(GameMode gameMode)
-	{
-		switch (gameMode)
-		{
-			case CREATIVE -> {
-				if(!CreativeManager.getSettings().creativeInvEnable())
-				{
-					gameMode = GameMode.SURVIVAL;
-				}
-			}
-			case ADVENTURE -> {
-				if(!CreativeManager.getSettings().adventureInvEnable())
-				{
-					gameMode = GameMode.SURVIVAL;
-				}
-			}
-			case SPECTATOR -> {
-				if(!CreativeManager.getSettings().spectatorInvEnable())
-				{
-					gameMode = GameMode.SURVIVAL;
-				}
-			}
-		}
-		return gameMode;
-	}
-
-	@EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-	public void onGMChangeRemoveEffects(PlayerGameModeChangeEvent e) {
-		if (!CreativeManager.getSettings().getProtection(Protections.REMOVE_EFFECTS)) return;
-		Player p = e.getPlayer();
-		if (!p.hasPermission("creativemanager.bypass.effects-cleaner")) {
-			for (PotionEffect effect:p.getActivePotionEffects()) {
-				p.removePotionEffect(effect.getType());
-			}
-		}
+	private GameMode getTargetGamemode(GameMode current) {
+		return switch (current) {
+			case CREATIVE -> settings.creativeInvEnable() ? GameMode.CREATIVE : GameMode.SURVIVAL;
+			case ADVENTURE -> settings.adventureInvEnable() ? GameMode.ADVENTURE : GameMode.SURVIVAL;
+			case SPECTATOR -> settings.spectatorInvEnable() ? GameMode.SPECTATOR : GameMode.SURVIVAL;
+			default -> GameMode.SURVIVAL;
+		};
 	}
 }
