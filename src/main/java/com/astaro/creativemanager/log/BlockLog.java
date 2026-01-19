@@ -1,58 +1,18 @@
 package com.astaro.creativemanager.log;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.OfflinePlayer;
-import org.bukkit.block.Block;
+import org.bukkit.World;
 
 import java.util.UUID;
 
-public class BlockLog {
-
-    private Location location;
-    private final UUID uuid;
-    private final OfflinePlayer player;
-    private boolean saved;
-
-    public BlockLog(Block block, OfflinePlayer player)
-    {
-        this.location = block.getLocation();
-        this.player = player;
-        this.uuid = UUID.randomUUID();
-    }
-    public BlockLog(Location location, OfflinePlayer player, UUID uuid)
-    {
-        this.location = location;
-        this.player = player;
-        this.uuid = uuid;
-    }
-    public void setLocation(Location location) {
-        this.location = location;
-        this.saved = false;
+public record BlockLog(String worldName, int x, int y, int z, UUID playerUUID){
+    public BlockLog(Location loc, UUID playerUUID){
+        this(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), playerUUID);
     }
 
-
-    public boolean isCreative()
-    {
-        return this.player != null;
-    }
-
-    public boolean isSaved() {
-        return saved;
-    }
-
-    public void setSaved(boolean saved) {
-        this.saved = saved;
-    }
-
-    public UUID getUuid() {
-        return uuid;
-    }
-
-    public Location getLocation() {
-        return location;
-    }
-
-    public OfflinePlayer getPlayer() {
-        return player;
+    public Location toLocation(){
+        World world = Bukkit.getWorld(worldName);
+        return world != null ? new Location(world,x,y,z) : null;
     }
 }
