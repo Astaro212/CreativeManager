@@ -8,6 +8,15 @@ send-player-messages: true
 antispam-tick: 5
 stop-inv-close-on-gmchange: false
 send-admin-update-message: true
+#DatabaseModule
+mysql:
+  enabled: false
+  type: mariadb
+  host: localhost
+  port: 3306
+  database: cm_1_logs
+  username: minecraft
+  password: your_secret_password
 ## Protection module
 protections:
   container: true #Bypass : creativemanager.bypass.container
