@@ -1,43 +1,79 @@
 package com.astaro.creativemanager.utils;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.type.ListType;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.Tag;
 
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 public class ListUtils {
 
-    private static final String SEMILICON = "*";
+    private static final String WILDCARD = "*";
 
-    public static boolean inList(String search, List<String> list) {
-        return inList(search, list, ListType.WHITELIST);
+    /**
+     * Проверяет, находится ли предмет/блок в списке (с учетом масок * и тегов #).
+     *
+     * @param search   имя материала для поиска (lowercase)
+     * @param list     список из конфига
+     * @param isWhitelist режим списка (true - whitelist, false - blacklist)
+     * @return true, если действие должно быть ЗАПРЕЩЕНО (или разрешено, если это whitelist)
+     */
+    public static boolean inList(String search, List<String> list, boolean isWhitelist) {
+        if (list == null || list.isEmpty()) return isWhitelist;
+
+        for (String s : list) {
+            s = s.toLowerCase();
+            if (s.isEmpty()) continue;
+
+            if (s.equals(WILDCARD)) return true;
+
+            if (s.startsWith("#")) {
+                if (checkTag(search, s.substring(1))) return true;
+                continue;
+            }
+
+            if (s.contains(WILDCARD)) {
+                if (checkWildcard(search, s)) return true;
+                continue;
+            }
+
+            if (s.equals(search)) return true;
+        }
+
+        return false;
     }
 
-    public static boolean inList(String search, List<String> list, ListType listType) {
-        List<String> lowerList = TextUtils.listToLowerCase(list);
-        for (String s : lowerList) {
-            if (SEMILICON.equals(s)) return !listType.isBlacklistMode();
-            if (s.isEmpty()) continue;
-            if (s.startsWith(SEMILICON) && s.endsWith(SEMILICON) && search.contains(s.substring(1, s.length() - 1)))
-                return !listType.isBlacklistMode();
-            if (s.startsWith(SEMILICON) && search.endsWith(s.substring(1))) return !listType.isBlacklistMode();
-            if (s.endsWith(SEMILICON) && search.startsWith(s.substring(0, s.length() - 1)))
-                return !listType.isBlacklistMode();
-            if (s.equals(search)) return !listType.isBlacklistMode();
-            if (s.startsWith("#")) {
-                Set<Material> set =
-                        CreativeManager.getTagMap().get(s.substring(1).toUpperCase(Locale.getDefault()));
-                if (set != null) {
-                    if (set.contains(Material.valueOf(search.toUpperCase(Locale.getDefault()))))
-                        return !listType.isBlacklistMode();
-                } else {
-                    CreativeManager.getInstance().getLogger().warning("Unable to find " + s + " tags");
-                }
-            }
+    private static boolean checkWildcard(String search, String pattern) {
+        if (pattern.startsWith(WILDCARD) && pattern.endsWith(WILDCARD)) {
+            return search.contains(pattern.substring(1, pattern.length() - 1));
         }
-        return listType.isBlacklistMode();
+        if (pattern.startsWith(WILDCARD)) {
+            return search.endsWith(pattern.substring(1));
+        }
+        if (pattern.endsWith(WILDCARD)) {
+            return search.startsWith(pattern.substring(0, pattern.length() - 1));
+        }
+        return false;
+    }
+
+    private static boolean checkTag(String materialName, String tagName) {
+        Material mat = Material.matchMaterial(materialName);
+        if (mat == null) return false;
+
+        NamespacedKey key = tagName.contains(":")
+                ? NamespacedKey.fromString(tagName)
+                : NamespacedKey.minecraft(tagName);
+
+        if (key == null) return false;
+
+        // Проверяем блоки
+        Tag<Material> blockTag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, key, Material.class);
+        if (blockTag != null && blockTag.isTagged(mat)) return true;
+
+        // Проверяем предметы
+        Tag<Material> itemTag = Bukkit.getTag(Tag.REGISTRY_ITEMS, key, Material.class);
+        return itemTag != null && itemTag.isTagged(mat);
     }
 }

@@ -1,6 +1,8 @@
 package com.astaro.creativemanager.utils;
 
 import com.astaro.creativemanager.CreativeManager;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
@@ -11,12 +13,13 @@ import java.util.List;
 public class SpigotUtils {
 
     public static String getPlayerDisplayname(Player player) {
-        return player.getDisplayName();
+        return LegacyComponentSerializer.legacySection().serialize(player.displayName());
     }
 
-    public static String getPluginName() {
-        return CreativeManager.getInstance().getDescription().getName();
+    public static String getPluginName(CreativeManager plugin) {
+        return plugin.getDescription().getName();
     }
+
 
     public static void setItemMetaLore(ItemMeta itemMeta, List<String> lore) {
         itemMeta.setLore(lore);
@@ -27,24 +30,20 @@ public class SpigotUtils {
     }
 
     public static boolean isPaper() {
-        try {
-            Class.forName("com.destroystokyo.paper.ParticleBuilder");
-            return true;
-        } catch (ClassNotFoundException ignored) {
-        }
-        return false;
+        return Bukkit.getName().equalsIgnoreCase("Paper") ||
+                Bukkit.getName().equalsIgnoreCase("Purpur");
     }
 
     public static Inventory createInventory(int row, String title) {
-        return Bukkit.createInventory(null, 9 * row, title);
+        return Bukkit.createInventory(null, 9 * row, Component.text(title));
     }
 
-    public static boolean isBrigadier() {
+    public static boolean isLifecycleSupported() {
         try {
             Class.forName("io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents");
             return true;
         } catch (ClassNotFoundException ignored) {
+            return false;
         }
-        return false;
     }
 }

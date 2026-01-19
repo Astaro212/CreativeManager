@@ -65,6 +65,24 @@ public class Settings {
     }
 
     /**
+     * Gets send message part
+     *
+     * @return boolean
+     */
+    public boolean isSendMessageEnabled() {
+        return config.getBoolean("send-player-messages", true);
+    }
+
+    /**
+     * Debug?
+     *
+     * @return boolean
+     */
+    public boolean isDebug() {
+        return config.getBoolean("debug", false);
+    }
+
+    /**
      * Gets protection.
      *
      * @param protections the protections.
@@ -187,9 +205,8 @@ public class Settings {
         return config.getString("lang");
     }
 
-    public Component getTag() {
-        String tag = config.getString("tag", "<gray>[<green>CreativeManager</green>]</gray> ");
-        return MiniMessage.miniMessage().deserialize(tag);
+    public String getTag() {
+        return config.getString("tag", "<gray>[<green>CreativeManager</green>]</gray> ");
     }
 
     public Configuration getConfig() {

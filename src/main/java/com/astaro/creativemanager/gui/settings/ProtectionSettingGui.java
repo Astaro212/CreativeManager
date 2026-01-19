@@ -18,6 +18,8 @@ import java.util.Collections;
  */
 public class ProtectionSettingGui extends PagedMenu {
 
+    private final CreativeManager plugin;
+
     /**
      * Instantiates a new Protection setting gui.
      *
@@ -25,6 +27,7 @@ public class ProtectionSettingGui extends PagedMenu {
      */
     public ProtectionSettingGui(CreativeManager plugin) {
         super(3, CreativeManager.TAG_INV + "Protection", plugin);
+        this.plugin = plugin;
         setSlots(Serializer.readIntArray(Collections.singletonList("0-17")));
         init();
     }
@@ -36,10 +39,10 @@ public class ProtectionSettingGui extends PagedMenu {
     public void init() {
         clearContent();
         for (Protections protection : Protections.values()) {
-            ItemStack itemStack = protection.getIconItem(CreativeManager.getSettings().getProtection(protection));
+            ItemStack itemStack = protection.getIconItem(plugin.getSettings().getProtection(protection));
             MenuItems items = new MenuItems(itemStack, (e) -> {
-                boolean value = CreativeManager.getSettings().getProtection(protection);
-                CreativeManager.getSettings().setProtection(protection, !value);
+                boolean value = plugin.getSettings().getProtection(protection);
+                plugin.getSettings().setProtection(protection, !value);
                 init();
             });
             add(items);

@@ -8,6 +8,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
 import java.util.Set;
+import java.util.logging.Level;
 
 public class SearchUtils {
     public static boolean inList(List<String> stringList, String string)
@@ -57,7 +58,7 @@ public class SearchUtils {
                     else
                     {
                         ((CreativeManager) Bukkit.getServer().getPluginManager().getPlugin("CreativeManager"))
-                                .getLog().log("Unable to find " + s.substring(1) + " tags");
+                                .getLogger().log(Level.WARNING,"Unable to find " + s.substring(1) + " tags");
                     }
                 }
             }
