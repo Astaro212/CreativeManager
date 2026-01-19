@@ -1,187 +1,122 @@
 package com.astaro.creativemanager.manager;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.settings.UserData;
+import com.astaro.creativemanager.utils.InventoryUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.PlayerInventory;
-import org.bukkit.util.io.BukkitObjectInputStream;
-import org.bukkit.util.io.BukkitObjectOutputStream;
-import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.sql.*;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
-/**
- * Inventory manager class.
- */
 public class InventoryManager {
-    private final Player p;
-    private final UserData cm;
+
     private final CreativeManager plugin;
+    private final DatabaseManager db;
+    private final NamespacedKey armorKey;
 
-    /**
-     * Instantiates a new Inventory manager.
-     *
-     * @param p        the player.
-     * @param instance the instance.
-     */
-    public InventoryManager(Player p, CreativeManager instance) {
-        this.p = p;
-        this.plugin = instance;
-        this.cm = new UserData(p, plugin);
+    public InventoryManager(CreativeManager plugin, DatabaseManager db) {
+        this.plugin = plugin;
+        this.db = db;
+        this.armorKey = new NamespacedKey(plugin, "creative_armor");
     }
 
-    /**
-     * Item stack array to base 64 string.
-     *
-     * @param items the items.
-     * @return the string.
-     * @throws IllegalStateException the illegal state exception.
-     */
-    public static String itemStackArrayToBase64(ItemStack[] items) throws IllegalStateException {
-        try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
 
-            // Write the size of the inventory
-            dataOutput.writeInt(items.length);
+    public CompletableFuture<Void> saveInventoryAsync(Player player, GameMode gm) {
+        if (plugin.getConfig().getBoolean("stop-inventory-save")) return CompletableFuture.completedFuture(null);
+        if (player.hasPermission("creativemanager.bypass.inventory-save")) return CompletableFuture.completedFuture(null);
 
-            // Save every element in the list
-            for (ItemStack item : items) {
-                dataOutput.writeObject(item);
+        String uuid = player.getUniqueId().toString();
+        String gmName = gm.name();
+        String content = InventoryUtils.itemStackArrayToBase64(player.getInventory().getContents());
+        String armor = InventoryUtils.itemStackArrayToBase64(player.getInventory().getArmorContents());
+
+        return CompletableFuture.runAsync(() -> {
+            String sql = "REPLACE INTO player_inventories (uuid, gamemode, content, armor) VALUES (?, ?, ?, ?)";
+            try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, uuid);
+                ps.setString(2, gmName);
+                ps.setString(3, content);
+                ps.setString(4, armor);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                plugin.getLogger().severe("Error saving SQL inventory: " + e.getMessage());
             }
-
-            // Serialize that array
-            dataOutput.close();
-            return Base64Coder.encodeLines(outputStream.toByteArray());
-        } catch (Exception e) {
-            throw new IllegalStateException("Unable to save item stacks.", e);
-        }
+        });
     }
 
-    public boolean hasContent()
-    {
-        return !cm.getConfiguration().getKeys(false).isEmpty();
+    public CompletableFuture<Void> loadInventoryAsync(Player player, GameMode gm) {
+        String uuid = player.getUniqueId().toString();
+        String gmName = gm.name();
+
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT content, armor FROM player_inventories WHERE uuid = ? AND gamemode = ?";
+            try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, uuid);
+                ps.setString(2, gmName);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) return new String[]{rs.getString("content"), rs.getString("armor")};
+                }
+            } catch (SQLException e) { e.printStackTrace(); }
+            return null;
+        }).thenAccept(data -> {
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (data != null) {
+                    try {
+                        player.getInventory().setContents(InventoryUtils.itemStackArrayFromBase64(data[0]));
+                        player.getInventory().setArmorContents(InventoryUtils.itemStackArrayFromBase64(data[1]));
+                    } catch (Exception e) {
+                        plugin.getLogger().severe("Error decoding inventory: " + e.getMessage());
+                    }
+                } else {
+                    player.getInventory().clear();
+                }
+            });
+        });
     }
 
-    /**
-     * Load inventory.
-     *
-     * @param gm the game mode.
-     */
-    public void loadInventory(GameMode gm) {
-        if(CreativeManager.getSettings().getConfiguration().getBoolean("stop-inventory-save")) return;
-        if(CreativeManager.getSettings().getConfiguration().getBoolean("stop-inventory-save-perm"))
-            if(p.hasPermission("creativemanager.bypass.inventory-save")) return;
-        String gm_name = gm.name();
-        if (cm.getConfiguration().contains(gm_name + ".content") && cm.getConfiguration().isString(gm_name + ".content") && cm.getConfiguration().contains(gm_name + ".armor") && cm.getConfiguration().isString(gm_name + ".armor")) {
-            try {
-                p.getInventory().setContents(this.itemStackArrayFromBase64(cm.getConfiguration().getString(gm_name + ".content")));
-                p.getInventory().setArmorContents(this.itemStackArrayFromBase64(cm.getConfiguration().getString(gm_name + ".armor")));
-            } catch (IOException e) {
-                plugin.getLogger().severe(e.getMessage());
+    public CompletableFuture<Boolean> hasContentAsync(UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            String sql = "SELECT 1 FROM player_inventories WHERE uuid = ? LIMIT 1";
+            try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) { return rs.next(); }
+            } catch (SQLException e) { return false; }
+        });
+    }
+
+
+    public void applyCreativeArmor(Player player) {
+        ItemStack[] armor = new ItemStack[4];
+        armor[3] = createArmorItem(plugin.getConfig().getString("creative-armor.helmet", "CHAINMAIL_HELMET"));
+        armor[2] = createArmorItem(plugin.getConfig().getString("creative-armor.chestplate", "CHAINMAIL_CHESTPLATE"));
+        armor[1] = createArmorItem(plugin.getConfig().getString("creative-armor.leggings", "CHAINMAIL_LEGGINGS"));
+        armor[0] = createArmorItem(plugin.getConfig().getString("creative-armor.boots", "CHAINMAIL_BOOTS"));
+
+        player.getInventory().setArmorContents(armor);
+    }
+
+    private ItemStack createArmorItem(String materialName) {
+        Material mat = Material.matchMaterial(materialName);
+        if (mat == null) mat = Material.AIR;
+        ItemStack item = new ItemStack(mat);
+        if (mat != Material.AIR) {
+            ItemMeta meta = item.getItemMeta();
+            if (meta != null) {
+                meta.getPersistentDataContainer().set(armorKey, PersistentDataType.BYTE, (byte) 1);
+                item.setItemMeta(meta);
             }
-            if (plugin.getConfig().getBoolean("log"))
-                this.plugin.getLogger().info("Load inventory of user " + p.getName() + " in file " + p.getUniqueId() + ".yml for gamemode " + gm_name);
-        } else {
-            p.getInventory().clear();
-            if (plugin.getConfig().getBoolean("log"))
-                this.plugin.getLogger().info("Clear inventory for " + p.getName() + " (" + p.getUniqueId() + ") because no saved inventory found for gamemode " + gm_name);
         }
-
+        return item;
     }
 
-    /**
-     * Save inventory.
-     *
-     * @param gm the game mode.
-     */
-    public void saveInventory(GameMode gm) {
-        if(CreativeManager.getSettings().getConfiguration().getBoolean("stop-inventory-save")) return;
-        if(CreativeManager.getSettings().getConfiguration().getBoolean("stop-inventory-save-perm"))
-            if(p.hasPermission("creativemanager.bypass.inventory-save")) return;
-        String gm_name = gm.name();
-        String[] encoded = this.playerInventoryToBase64(p.getInventory());
-        cm.getConfiguration().set(gm_name + ".content", encoded[0]);
-        cm.getConfiguration().set(gm_name + ".armor", encoded[1]);
-        if (cm.getConfiguration().contains(gm_name + ".content") && cm.getConfiguration().isString(gm_name + ".content") && cm.getConfiguration().contains(gm_name + ".armor") && cm.getConfiguration().isString(gm_name + ".armor")) {
-            cm.save();
-            if (plugin.getConfig().getBoolean("log"))
-                this.plugin.getLogger().info("Save inventory of user " + p.getName() + " in file " + p.getUniqueId() + ".yml for gamemode " + gm_name);
-        }
-    }
-
-    /**
-     * Player inventory to base 64 string.
-     *
-     * @param playerInventory the player inventory.
-     * @return the string [ ]
-     * @throws IllegalStateException the illegal state exception.
-     */
-    private String[] playerInventoryToBase64(PlayerInventory playerInventory) throws IllegalStateException {
-        //get the main content part, this doesn't return the armor
-        String content = this.toBase64(playerInventory);
-        String armor = itemStackArrayToBase64(playerInventory.getArmorContents());
-
-        return new String[]{content, armor};
-    }
-
-    /**
-     * Special thanks to Comphenix in the Bukkit forums or also known
-     * as aadnk on GitHub.
-     * <a href="https://gist.github.com/aadnk/8138186">Original Source</a>
-     *
-     * @param inventory the inventory
-     * @return the string
-     * @throws IllegalStateException the illegal state exception
-     */
-    private String toBase64(Inventory inventory) throws IllegalStateException {
-        try {
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            BukkitObjectOutputStream dataOutput = new BukkitObjectOutputStream(outputStream);
-
-            // Write the size of the inventory
-            dataOutput.writeInt(inventory.getSize());
-
-            // Save every element in the list
-            for (int i = 0; i < inventory.getSize(); i++) {
-                dataOutput.writeObject(inventory.getItem(i));
-            }
-
-            // Serialize that array
-            dataOutput.close();
-            return Base64Coder.encodeLines(outputStream.toByteArray());
-        } catch (Exception e) {
-            throw new IllegalStateException("Unable to save item stacks.", e);
-        }
-    }
-
-    /**
-     * Item stack array from base 64 item stack.
-     *
-     * @param data the data.
-     * @return the item stack.
-     * @throws IOException the io exception.
-     */
-    private ItemStack[] itemStackArrayFromBase64(String data) throws IOException {
-        try {
-            ByteArrayInputStream inputStream = new ByteArrayInputStream(Base64Coder.decodeLines(data));
-            BukkitObjectInputStream dataInput = new BukkitObjectInputStream(inputStream);
-            ItemStack[] items = new ItemStack[dataInput.readInt()];
-
-            // Read the serialized inventory.
-            for (int i = 0; i < items.length; i++) {
-                items[i] = (ItemStack) dataInput.readObject();
-            }
-
-            dataInput.close();
-            return items;
-        } catch (ClassNotFoundException e) {
-            throw new IOException("Unable to decode class type.", e);
-        }
+    public NamespacedKey getArmorKey() {
+        return armorKey;
     }
 }
