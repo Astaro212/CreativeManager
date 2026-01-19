@@ -1,5 +1,7 @@
 package com.astaro.creativemanager.data;
 
+import com.astaro.creativemanager.manager.DatabaseManager;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,6 +23,13 @@ public class BlockLogRepository {
             s.executeUpdate("CREATE TABLE IF NOT EXISTS block_log (" +
                     "world VARCHAR(64), x INT, y INT, z INT, player VARCHAR(36), " +
                     "PRIMARY KEY (world, x, y, z))");
+            s.executeUpdate("CREATE TABLE IF NOT EXISTS player_inventories (" +
+                    "uuid VARCHAR(36)NOT NULL," +
+                    "gamemode VARCHAR(20)NOT NULL," +
+                    "content LONGTEXT NOT NULL," +
+                    "armor LONGTEXT NOT NULL," +
+                    "PRIMARY KEY(uuid, gamemode))"
+            );
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -120,4 +129,6 @@ public class BlockLogRepository {
         }
         return 0;
     }
+
+
 }

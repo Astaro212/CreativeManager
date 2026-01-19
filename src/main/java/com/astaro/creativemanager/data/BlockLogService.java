@@ -19,9 +19,9 @@ public class BlockLogService {
     private final CreativeManager instance;
     private final ConcurrentLinkedQueue<BlockLog> saveQueue = new ConcurrentLinkedQueue<>();
 
-    private final Cache<Location, BlockLog> cache = Caffeine.newBuilder()
+    private final Cache<Long, UUID> cache = Caffeine.newBuilder()
             .expireAfterAccess(10, TimeUnit.MINUTES)
-            .maximumSize(100_000)
+            .maximumSize(200_000) // Увеличили для 2026 года, так как Long->UUID очень легкие
             .build();
 
     public BlockLogService(CreativeManager plugin, BlockLogRepository repository) {
@@ -30,68 +30,70 @@ public class BlockLogService {
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::flushQueue, 100L, 100L);
     }
 
-    public void logBlock(Location loc, UUID playerUuid) {
-        BlockLog record = new BlockLog(loc.getWorld().getName(),
-                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), playerUuid);
-        cache.put(loc, record);
-        saveQueue.add(record);
+    private long getBlockKey(int x, int y, int z) {
+        return ((long) x & 0x7FFFFFFL) | (((long) z & 0x7FFFFFFL) << 27) | (((long) y & 0x3FFL) << 54);
+    }
+
+
+    public boolean isCreativeBlock(Location loc) {
+        return cache.getIfPresent(getBlockKey(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())) != null;
     }
 
     public void logBlock(String world, int x, int y, int z, UUID playerUuid) {
+        long key = getBlockKey(x, y, z);
+        cache.put(key, playerUuid);
         saveQueue.add(new BlockLog(world, x, y, z, playerUuid));
     }
 
-    private void flushQueue() {
-        if (saveQueue.isEmpty()) return;
-
-        List<BlockLog> batch = new ArrayList<>();
-        BlockLog record;
-        while (batch.size() < 2000 && (record = saveQueue.poll()) != null) {
-            batch.add(record);
-        }
-
-        if (!batch.isEmpty()) {
-            repository.saveBatch(batch);
-        }
-    }
-
-    public boolean isCreativeBlock(Location loc) {
-        return cache.getIfPresent(loc) != null;
-    }
-
-    public CompletableFuture<Boolean> isCreativeAsync(Location loc) {
-        BlockLog cached = cache.getIfPresent(loc);
-        if (cached != null) return CompletableFuture.completedFuture(true);
-
-        return CompletableFuture.supplyAsync(() -> {
-            return repository.exists(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
-        });
+    public void logBlock(Location loc, UUID playerUuid) {
+        logBlock(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), playerUuid);
     }
 
     public void loadChunk(String world, int cx, int cz) {
         repository.loadChunk(world, cx, cz).thenAccept(logs -> {
             if (logs == null || logs.isEmpty()) return;
             for (BlockLog log : logs) {
-                Location loc = log.toLocation();
-                if (loc != null) cache.put(loc, log);
+                cache.put(getBlockKey(log.x(), log.y(), log.z()), log.playerUUID());
             }
         });
     }
 
-    public BlockLog getLog(Location loc) {
-        if (loc == null) return null;
-        return cache.getIfPresent(loc);
+    public CompletableFuture<Boolean> isCreativeAsync(Location loc) {
+        UUID cached = cache.getIfPresent(getBlockKey(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()));
+        if (cached != null) return CompletableFuture.completedFuture(true);
+
+        return CompletableFuture.supplyAsync(() ->
+                repository.exists(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())
+        );
     }
 
     public void removeLog(Location loc) {
-        cache.invalidate(loc);
-        Bukkit.getScheduler().runTaskAsynchronously(instance, () -> {
-            repository.delete(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
-        });
+        cache.invalidate(getBlockKey(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()));
+        Bukkit.getScheduler().runTaskAsynchronously(instance, () ->
+                repository.delete(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())
+        );
+    }
+
+    public BlockLog getLog(Location loc) {
+        if (loc == null || loc.getWorld() == null) return null;
+        UUID playerUuid = cache.getIfPresent(getBlockKey(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()));
+        if (playerUuid == null) return null;
+
+        return new BlockLog(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), playerUuid);
+    }
+
+    private void flushQueue() {
+        if (saveQueue.isEmpty()) return;
+        List<BlockLog> batch = new ArrayList<>();
+        BlockLog record;
+        while (batch.size() < 2000 && (record = saveQueue.poll()) != null) {
+            batch.add(record);
+        }
+        if (!batch.isEmpty()) repository.saveBatch(batch);
     }
 
     public void shutdown() {
-        instance.getLogger().info("Saving pending block logs before shutdown...");
+        instance.getLogger().info("Saving pending block logs...");
         flushQueue();
     }
 }

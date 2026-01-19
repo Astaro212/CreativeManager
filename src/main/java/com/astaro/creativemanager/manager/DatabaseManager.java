@@ -1,16 +1,12 @@
-package com.astaro.creativemanager.data;
+package com.astaro.creativemanager.manager;
 
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.settings.Settings;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import org.bukkit.Bukkit;
-import org.bukkit.configuration.ConfigurationSection;
 
 import java.io.File;
-import java.io.IOException;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.logging.Level;
 
@@ -21,11 +17,7 @@ public class DatabaseManager {
 
     public DatabaseManager(CreativeManager instance) {
         this.plugin = instance;
-        try {
-            setDatabase(plugin.getSettings());
-        } catch (Exception e){
-            plugin.getLogger().log(Level.SEVERE, "Couldn't init database");
-        }
+        setDatabase(plugin.getSettings());
     }
 
     private void setDatabase(Settings settings) {
@@ -77,8 +69,13 @@ public class DatabaseManager {
      * @return Connection
      */
     public Connection getConnection() throws SQLException {
-        if (this.source == null) throw new SQLException("DataSource is not initialized!");
-        return this.source.getConnection();
+        if (this.source == null) {
+            throw new SQLException("DataSource is not initialized yet! MySQL connection is still establishing.");
+        }
+        if (this.source.isClosed()) {
+            throw new SQLException("DataSource is closed!");
+        }
+        return source.getConnection();
     }
 
     /**
