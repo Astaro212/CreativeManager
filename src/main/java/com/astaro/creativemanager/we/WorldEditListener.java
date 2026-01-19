@@ -7,7 +7,7 @@ import com.sk89q.worldedit.math.BlockVector3;
 import com.sk89q.worldedit.regions.Region;
 import com.sk89q.worldedit.util.eventbus.Subscribe;
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.log.BlockLog;
+import com.astaro.creativemanager.data.BlockLog;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.Block;

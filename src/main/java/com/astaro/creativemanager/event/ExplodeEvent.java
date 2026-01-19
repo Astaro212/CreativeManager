@@ -1,9 +1,9 @@
 package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.log.BlockLog;
+import com.astaro.creativemanager.data.BlockLog;
+import com.astaro.creativemanager.data.BlockLogService;
 import com.astaro.creativemanager.settings.Protections;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
@@ -22,89 +22,69 @@ import java.util.UUID;
 public class ExplodeEvent implements Listener {
 
     private final CreativeManager plugin;
+    private final BlockLogService logService;
 
-    private static final String UUID_ID = "/UUID";
-    private static final String DATE_ID = "/DATE";
+    private final NamespacedKey uuidKey;
+    private final NamespacedKey dateKey;
 
-    public ExplodeEvent(CreativeManager cm)
-    {
-        plugin = cm;
+    public ExplodeEvent(CreativeManager cm) {
+        this.plugin = cm;
+        this.logService = cm.getBlockLogService();
+        this.uuidKey = new NamespacedKey(cm, "uuid");
+        this.dateKey = new NamespacedKey(cm, "date");
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBlockBreak(BlockExplodeEvent e) {
-        if (CreativeManager.getSettings().getProtection(Protections.LOOT)) {
-            for(Block block: e.blockList())
-            {
-                BlockLog blockLog = plugin.getDataManager().getBlockFrom(block.getLocation());
-                if (blockLog != null) {
-                    if (blockLog.isCreative()) {
-                        block.setType(Material.AIR);
-                        plugin.getDataManager().removeBlock(blockLog.getLocation());
-                    }
-                }
-            }
-        }
-    }
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBlockChange(EntityChangeBlockEvent e)
-    {
-        if (e.getTo().equals(Material.AIR) && !((e.getEntity() instanceof FallingBlock))) {
-            BlockLog blockLog = plugin.getDataManager().getBlockFrom(e.getBlock().getLocation());
-            if (blockLog != null) {
-                if (blockLog.isCreative()) {
-                    e.setCancelled(true);
-                }
+    public void onBlockExplode(BlockExplodeEvent e) {
+        if (!plugin.getSettings().getProtection(Protections.LOOT)) return;
+
+        for (Block block : e.blockList()) {
+            if (logService.isCreativeBlock(block.getLocation())) {
+                block.setType(Material.AIR);
+                logService.removeLog(block.getLocation());
             }
         }
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onFallBlock(EntityChangeBlockEvent event) {
-        BlockLog blockLog = plugin.getDataManager().getBlockFrom(event.getBlock().getLocation());
-        if (blockLog != null) {
-            UUID uuid = blockLog.getPlayer().getUniqueId();
-            if(event.getEntity() instanceof FallingBlock fallingBlock)
-            {
-                register(fallingBlock, uuid);
+    public void onFallingBlockStart(EntityChangeBlockEvent event) {
+        if (event.getTo() == Material.AIR && event.getEntity() instanceof FallingBlock fallingBlock) {
+            BlockLog log = logService.getLog(event.getBlock().getLocation());
+            if (log != null) {
+                registerMetadata(fallingBlock, log.playerUUID());
                 fallingBlock.setDropItem(false);
-            }
-            if(event.getTo().equals(Material.AIR))
-            {
-                plugin.getDataManager().removeBlock(blockLog.getLocation());
-            }
-        }
-    }
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onFallBlockStop(EntityChangeBlockEvent event) {
-        if(event.getEntity() instanceof FallingBlock fallingBlock && !event.getTo().equals(Material.AIR)) {
-            UUID uuid = findPlayer(fallingBlock);
-            if(uuid == null) return;
-            if(!event.getTo().equals(Material.AIR))
-            {
-                plugin.getDataManager().addBlock(
-                        new BlockLog(event.getBlock(), Bukkit.getPlayer(uuid))
-                );
+                logService.removeLog(event.getBlock().getLocation());
             }
         }
     }
 
-    public static void register(Entity entity, UUID uuid)
-    {
-        NamespacedKey namespacedKeyUuid = new NamespacedKey(CreativeManager.getInstance(), UUID_ID);
-        entity.getPersistentDataContainer()
-                .set(namespacedKeyUuid, PersistentDataType.STRING, uuid.toString());
-        NamespacedKey namespacedKeyDate = new NamespacedKey(CreativeManager.getInstance(), DATE_ID);
-        entity.getPersistentDataContainer()
-                .set(namespacedKeyDate, PersistentDataType.LONG, System.currentTimeMillis());
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onFallingBlockLand(EntityChangeBlockEvent event) {
+        if (event.getEntity() instanceof FallingBlock fallingBlock && event.getTo() != Material.AIR) {
+            UUID ownerUuid = getOwnerFromMetadata(fallingBlock);
+            if (ownerUuid != null) {
+                logService.logBlock(event.getBlock().getLocation(), ownerUuid);
+            }
+        }
     }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onOtherBlockChange(EntityChangeBlockEvent e) {
+        if (e.getTo() == Material.AIR && !(e.getEntity() instanceof FallingBlock)) {
+            if (logService.isCreativeBlock(e.getBlock().getLocation())) {
+                e.setCancelled(true);
+            }
+        }
+    }
+
+    private void registerMetadata(Entity entity, UUID uuid) {
+        entity.getPersistentDataContainer().set(uuidKey, PersistentDataType.STRING, uuid.toString());
+        entity.getPersistentDataContainer().set(dateKey, PersistentDataType.LONG, System.currentTimeMillis());
+    }
+
     @Nullable
-    public static UUID findPlayer(Entity entity)
-    {
-        NamespacedKey namespacedKeyUuid = new NamespacedKey(CreativeManager.getInstance(), UUID_ID);
-        String UUIDText = entity.getPersistentDataContainer().get(namespacedKeyUuid, PersistentDataType.STRING);
-        if(UUIDText == null)
-            return null;
-        return UUID.fromString(UUIDText);
+    private UUID getOwnerFromMetadata(Entity entity) {
+        String uuidStr = entity.getPersistentDataContainer().get(uuidKey, PersistentDataType.STRING);
+        return uuidStr != null ? UUID.fromString(uuidStr) : null;
     }
 }

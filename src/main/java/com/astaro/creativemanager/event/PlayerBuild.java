@@ -1,7 +1,7 @@
 package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.log.BlockLog;
+import com.astaro.creativemanager.data.BlockLog;
 import com.astaro.creativemanager.settings.Protections;
 import com.astaro.creativemanager.utils.BlockUtils;
 import com.astaro.creativemanager.utils.CMUtils;

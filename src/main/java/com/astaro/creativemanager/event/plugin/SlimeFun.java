@@ -29,7 +29,7 @@ public class SlimeFun implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void onMultiBlockInteract(MultiBlockInteractEvent e)
     {
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
         if(!e.getPlayer().getGameMode().equals(GameMode.CREATIVE)) return;
         if(e.getPlayer().hasPermission("creativemanager.bypass.slimefun")) return;
         HashMap<String, String> replaceMap = new HashMap<>();
@@ -41,7 +41,7 @@ public class SlimeFun implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void protectBreakWithSlimefun(BlockBreakEvent e)
     {
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
         if(SlimefunItem.getByItem(e.getPlayer().getActiveItem()) == null) return;
         if(!e.getPlayer().getGameMode().equals(GameMode.CREATIVE)) return;
         if(e.getPlayer().hasPermission("creativemanager.bypass.slimefun")) return;
@@ -55,7 +55,7 @@ public class SlimeFun implements Listener {
     public void protectSlimefunItemInventory(final InventoryClickEvent e)
     {
         Player p = (Player) e.getWhoClicked();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.slimefun")) return;
         if(SlimefunItem.getByItem(e.getCurrentItem()) != null)
@@ -81,7 +81,7 @@ public class SlimeFun implements Listener {
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGHEST)
     public void protectSlimefunItemInteract(final PlayerRightClickEvent e)
     {
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_SLIMEFUN)) return;
         if(!e.getPlayer().getGameMode().equals(GameMode.CREATIVE)) return;
         if(e.getPlayer().hasPermission("creativemanager.bypass.slimefun")) return;
         if(e.getPlayer().getInventory().getItemInMainHand().getType().equals(Material.AIR)) return;

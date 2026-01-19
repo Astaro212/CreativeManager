@@ -1,7 +1,7 @@
 package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.log.BlockLog;
+import com.astaro.creativemanager.data.BlockLog;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;

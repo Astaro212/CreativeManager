@@ -1,8 +1,10 @@
 package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.log.BlockLog;
+import com.astaro.creativemanager.data.BlockLog;
+import com.astaro.creativemanager.data.BlockLogService;
 import com.astaro.creativemanager.utils.BlockUtils;
+import org.bukkit.Location;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
@@ -14,87 +16,60 @@ import org.bukkit.event.block.BlockGrowEvent;
 import org.bukkit.event.block.BlockSpreadEvent;
 import org.bukkit.event.world.StructureGrowEvent;
 
+import java.util.UUID;
+
 public class BlockEvent implements Listener {
 
     private final CreativeManager plugin;
+    private final BlockLogService logService;
 
-    public BlockEvent(CreativeManager cm)
-    {
-        plugin = cm;
+    public BlockEvent(CreativeManager cm) {
+        this.plugin = cm;
+        this.logService = cm.getBlockLogService();
     }
 
-    /*@EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-    void onBlockPhysicsEvent(BlockPhysicsEvent event){
-        try {
-            Block block = event.getBlock();
-            if(block.getType().equals(Material.AIR)) return;
-            if(block.getBlockData().isSupported(block)) return;
-            BlockLog blockLog = plugin.getDataManager().getBlockFrom(block.getLocation());
-            if(blockLog != null && blockLog.isCreative())
-            {
-                event.setCancelled(true);
-                block.setType(Material.AIR);
-            }
-        } catch (NoSuchMethodError ignored) {}
-    }*/
     @EventHandler(ignoreCancelled = true, priority = EventPriority.LOWEST)
-    void onBlockGrow(BlockGrowEvent event)
-    {
+    void onBlockGrow(BlockGrowEvent event) {
         Block block = event.getBlock();
-        switch (event.getBlock().getType())
-        {
-            case CACTUS:
-            case SUGAR_CANE:
-                BlockLog blockLog = plugin.getDataManager().getBlockFrom(block.getRelative(BlockFace.DOWN).getLocation());
-                if(blockLog != null && blockLog.isCreative())
-                {
-                    plugin.getDataManager().addBlock(
-                            new BlockLog(block, blockLog.getPlayer())
-                    );
+        Location loc = block.getLocation();
+
+        switch (block.getType()) {
+            case CACTUS, SUGAR_CANE -> {
+                BlockLog parentLog = logService.getLog(block.getRelative(BlockFace.DOWN).getLocation());
+                if (parentLog != null) {
+                    logService.logBlock(loc, parentLog.playerUUID());
                 }
-                break;
-            case PUMPKIN:
-            case MELON:
-                for(Block b: BlockUtils.getAdjacentBlocks(block))
-                {
-                    if(Tag.CROPS.isTagged(b.getType()))
-                    {
-                        BlockLog bLog = plugin.getDataManager().getBlockFrom(b.getLocation());
-                        if(bLog != null && bLog.isCreative())
-                        {
-                            plugin.getDataManager().addBlock(
-                                    new BlockLog(block, bLog.getPlayer())
-                            );
+            }
+            case PUMPKIN, MELON -> {
+                for (Block b : BlockUtils.getAdjacentBlocks(block)) {
+                    if (Tag.CROPS.isTagged(b.getType())) {
+                        BlockLog bLog = logService.getLog(b.getLocation());
+                        if (bLog != null) {
+                            logService.logBlock(loc, bLog.playerUUID());
+                            break;
                         }
                     }
                 }
-                break;
-        }
-    }
-
-    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
-    void onStructureGrow(StructureGrowEvent event){
-        BlockLog blockLog = plugin.getDataManager().getBlockFrom(event.getLocation());
-        if(blockLog != null && blockLog.isCreative())
-        {
-            for(BlockState block: event.getBlocks())
-            {
-                plugin.getDataManager().addBlock(
-                        new BlockLog(block.getBlock(), blockLog.getPlayer())
-                );
             }
         }
     }
 
     @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
-    void onBlockSpread(BlockSpreadEvent event)
-    {
-        BlockLog blockLog = plugin.getDataManager().getBlockFrom(event.getSource().getLocation());
-        if(blockLog != null && blockLog.isCreative())
-        {
-            plugin.getDataManager().addBlock(
-                    new BlockLog(event.getBlock(), blockLog.getPlayer())
-            );
+    void onStructureGrow(StructureGrowEvent event) {
+        BlockLog sourceLog = logService.getLog(event.getLocation());
+        if (sourceLog != null) {
+            UUID owner = sourceLog.playerUUID();
+            for (BlockState state : event.getBlocks()) {
+                logService.logBlock(state.getLocation(), owner);
+            }
+        }
+    }
+
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+    void onBlockSpread(BlockSpreadEvent event) {
+        BlockLog sourceLog = logService.getLog(event.getSource().getLocation());
+        if (sourceLog != null) {
+            logService.logBlock(event.getBlock().getLocation(), sourceLog.playerUUID());
         }
     }
 }

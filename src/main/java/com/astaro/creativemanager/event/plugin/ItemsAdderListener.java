@@ -25,7 +25,7 @@ public class ItemsAdderListener implements Listener  {
     public void onPlaceFurniture(FurniturePrePlaceEvent e)
     {
         Player p = e.getPlayer();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.itemsadder.furnituresplace")) return;
         CMUtils.sendMessage(e.getPlayer(), "permission.plugins", replaceMap);
@@ -36,7 +36,7 @@ public class ItemsAdderListener implements Listener  {
     public void onBlockPlace(CustomBlockPlaceEvent e)
     {
         Player p = e.getPlayer();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.itemsadder.blockplace")) return;
         CMUtils.sendMessage(e.getPlayer(), "permission.plugins", replaceMap);        e.setCancelled(true);
@@ -45,7 +45,7 @@ public class ItemsAdderListener implements Listener  {
     public void onBlockBreak(CustomBlockBreakEvent e)
     {
         Player p = e.getPlayer();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.itemsadder.blockbreak")) return;
         CMUtils.sendMessage(e.getPlayer(), "permission.plugins", replaceMap);
@@ -55,7 +55,7 @@ public class ItemsAdderListener implements Listener  {
     public void onBlockInteract(CustomBlockInteractEvent e)
     {
         Player p = e.getPlayer();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.itemsadder.blockinteract")) return;
         CMUtils.sendMessage(e.getPlayer(), "permission.plugins", replaceMap);
@@ -65,7 +65,7 @@ public class ItemsAdderListener implements Listener  {
     public void onFurnitureInteract(FurnitureInteractEvent e)
     {
         Player p = e.getPlayer();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.itemsadder.furnituresinteract")) return;
         CMUtils.sendMessage(e.getPlayer(), "permission.plugins", replaceMap);
@@ -76,7 +76,7 @@ public class ItemsAdderListener implements Listener  {
     {
         if(e.getKiller() == null) return;
         Player p = e.getKiller();
-        if(!CreativeManager.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
+        if(!plugin.getSettings().getProtection(Protections.PL_ITEMSADDER)) return;
         if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
         if(p.hasPermission("creativemanager.bypass.itemsadder.killentity")) return;
         CMUtils.sendMessage(p, "permission.plugins", replaceMap);

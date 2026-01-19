@@ -31,9 +31,14 @@ public class BlockLogService {
     }
 
     public void logBlock(Location loc, UUID playerUuid) {
-        BlockLog record = new BlockLog(loc, playerUuid);
+        BlockLog record = new BlockLog(loc.getWorld().getName(),
+                loc.getBlockX(), loc.getBlockY(), loc.getBlockZ(), playerUuid);
         cache.put(loc, record);
         saveQueue.add(record);
+    }
+
+    public void logBlock(String world, int x, int y, int z, UUID playerUuid) {
+        saveQueue.add(new BlockLog(world, x, y, z, playerUuid));
     }
 
     private void flushQueue() {
@@ -71,6 +76,11 @@ public class BlockLogService {
                 if (loc != null) cache.put(loc, log);
             }
         });
+    }
+
+    public BlockLog getLog(Location loc) {
+        if (loc == null) return null;
+        return cache.getIfPresent(loc);
     }
 
     public void removeLog(Location loc) {

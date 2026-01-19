@@ -102,12 +102,12 @@ public abstract class Commands implements CommandExecutor {
                 return true;
             }
             else if (sender instanceof Conversable)
-                sender.sendMessage(CreativeManager.TAG + CreativeManager.getSettings().getTag() + " &cUnknown subcommands !");
+                sender.sendMessage(CreativeManager.TAG + plugin.getSettings().getTag().toString() + " &cUnknown subcommands !");
         }else {
             if (defaultSubCmd != null)
                 subCommands.get(defaultSubCmd).onCommand(sender, args);
             else
-                    sender.sendMessage(CreativeManager.TAG + CreativeManager.getSettings().getTag() + " &cMissing arguments !");
+                    sender.sendMessage(CreativeManager.TAG + plugin.getSettings().getTag().toString() + " &cMissing arguments !");
         }
 
         return false;
