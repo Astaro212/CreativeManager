@@ -1,13 +1,10 @@
 package com.astaro.creativemanager.event;
 
 import com.astaro.creativemanager.CreativeManager;
-import com.astaro.creativemanager.log.BlockLog;
+import com.astaro.creativemanager.data.BlockLogService;
 import com.astaro.creativemanager.settings.Protections;
 import com.astaro.creativemanager.utils.BlockUtils;
-import com.astaro.creativemanager.utils.CMUtils;
 import com.astaro.creativemanager.utils.SearchUtils;
-import fr.k0bus.k0buscore.utils.StringUtils;
-import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -18,109 +15,72 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 
-import java.util.HashMap;
 import java.util.List;
 
-/**
- * Player break block listener.
- */
 public class PlayerBreak implements Listener {
-	private final CreativeManager plugin;
+    private final CreativeManager plugin;
+    private final BlockLogService logService;
 
-	/**
-	 * Instantiates a new Player break.
-	 *
-	 * @param instance the instance.
-	 */
-	public PlayerBreak(CreativeManager instance) {
-		plugin = instance;
-	}
+    public PlayerBreak(CreativeManager instance) {
+        this.plugin = instance;
+        this.logService = instance.getBlockLogService();
+    }
 
-	/**
-	 * On block break.
-	 *
-	 * @param e the event.
-	 */
-	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
-	public void onBreak(BlockBreakEvent e) {
-		Player p = e.getPlayer();
-		if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
-		if(!CreativeManager.getSettings().getProtection(Protections.BUILD)) return;
-		if(p.hasPermission("creativemanager.bypass.build")) return;
-		if (p.getGameMode() == GameMode.CREATIVE) {
-			if (CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-				CMUtils.sendMessage(p, "permission.build");
-			e.setCancelled(true);
-		}
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent e) {
+        Player p = e.getPlayer();
+        Block block = e.getBlock();
+        Location loc = block.getLocation();
+        GameMode gm = p.getGameMode();
 
-		Location loc = e.getBlock().getLocation();
-		BlockLog log = plugin.getDataManager().getBlockFrom(loc);
+        if (gm == GameMode.CREATIVE) {
+            if (plugin.getSettings().getProtection(Protections.BUILD) && !p.hasPermission("creativemanager.bypass.build")) {
+                e.setCancelled(true);
+                return;
+            }
 
-		if (log != null) {
-			Bukkit.getLogger().info("[WERC DEBUG] Block " + loc.toVector().toString() + " found (Type: " + log.getLocation().getBlock() + ")");
+            if (isBlacklisted(p, block)) {
+                e.setCancelled(true);
+                return;
+            }
+        }
 
-			if (!p.hasPermission("werc.bypass.weprot")) {
-				e.setDropItems(false);
-				plugin.getDataManager().delete(log);
-			} else {
-				Bukkit.getLogger().info("[WERC DEBUG] Player " + p.getName() + " have bypass.weprot, дроп разрешен.");
-			}
-		} else {
-			Bukkit.getLogger().info("[WERC DEBUG] Block " + loc.toVector().toString() + " not found.");
-		}
-	}
-	@EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
-	public void checkBlacklist(BlockBreakEvent e)
-	{
-		Player p = e.getPlayer();
-		String blockName = e.getBlock().getType().name().toLowerCase();
-		if(!p.getGameMode().equals(GameMode.CREATIVE)) return;
-		if(p.hasPermission("creativemanager.bypass.blacklist.break")) return;
-		if(p.hasPermission("creativemanager.bypass.blacklist.break." + blockName)) return;
-		List<String> blacklist = CreativeManager.getSettings().getBreakBL();
-		if((CreativeManager.getSettings().getConfiguration().getString("list.mode.break").equals("whitelist") && !SearchUtils.inList(blacklist, e.getBlock())) ||
-				(!CreativeManager.getSettings().getConfiguration().getString("list.mode.break").equals("whitelist") && SearchUtils.inList(blacklist, e.getBlock()))){
-			HashMap<String, String> replaceMap = new HashMap<>();
-			replaceMap.put("{BLOCK}", StringUtils.proper(e.getBlock().getType().name()));
-			if (CreativeManager.getSettings().getConfiguration().getBoolean("send-player-messages"))
-				CMUtils.sendMessage(p, "blacklist.place", replaceMap);
-			e.setCancelled(true);
-		}
-	}
+        List<Block> blockStructure = BlockUtils.getBlockStructure(block);
 
-	@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-	public void checkLog(BlockBreakEvent e)
-	{
-		List<Block> blocks = BlockUtils.getBlockStructure(e.getBlock());
-		for (Block block:blocks) {
-			Player p = e.getPlayer();
-			if(!p.getGameMode().equals(GameMode.CREATIVE)) {
-				if (!p.hasPermission("creativemanager.bypass.break-creative"))
-				{
-					BlockLog blockLog = plugin.getDataManager().getBlockFrom(block.getLocation());
-					if (blockLog != null) {
-						if (blockLog.isCreative()) {
-							e.setCancelled(true);
-							return;
-						}
-					}
-				}
-				if (p.hasPermission("creativemanager.bypass.log")) return;
-				if (!CreativeManager.getSettings().getProtection(Protections.LOOT)) return;
-				BlockLog blockLog = plugin.getDataManager().getBlockFrom(block.getLocation());
-				if (blockLog != null) {
-					if (blockLog.isCreative()) {
-						block.setType(Material.AIR);
-						plugin.getDataManager().removeBlock(blockLog.getLocation());
-						e.setCancelled(true);
-					}
-				}
-			}else {
-				BlockLog blockLog = plugin.getDataManager().getBlockFrom(block.getLocation());
-				if (blockLog != null) {
-					plugin.getDataManager().removeBlock(blockLog.getLocation());
-				}
-			}
-		}
-	}
+        for (Block b : blockStructure) {
+            Location bLoc = b.getLocation();
+            boolean isCreative = logService.isCreativeBlock(bLoc);
+
+            if (!isCreative) continue;
+
+            if (gm == GameMode.CREATIVE) {
+                logService.removeLog(bLoc);
+            } else {
+                handleSurvivalBreak(e, p, b);
+            }
+        }
+    }
+
+    private void handleSurvivalBreak(BlockBreakEvent e, Player p, Block b) {
+        if (p.hasPermission("creativemanager.bypass.break-creative")) return;
+
+        if (plugin.getSettings().getProtection(Protections.LOOT)) {
+            b.setType(Material.AIR);
+            logService.removeLog(b.getLocation());
+            e.setCancelled(true);
+        }
+    }
+
+    private boolean isBlacklisted(Player p, Block b) {
+        if (p.hasPermission("creativemanager.bypass.blacklist.break")) return false;
+
+        String blockName = b.getType().name().toLowerCase();
+        if (p.hasPermission("creativemanager.bypass.blacklist.break." + blockName)) return false;
+
+        List<String> blacklist = plugin.getSettings().getBreakBL();
+        boolean isWhitelist = "whitelist".equalsIgnoreCase(plugin.getSettings().getConfig().getString("list.mode.break"));
+
+        boolean inList = SearchUtils.inList(blacklist, b);
+        return isWhitelist != inList;
+    }
 }
