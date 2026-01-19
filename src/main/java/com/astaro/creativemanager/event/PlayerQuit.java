@@ -1,0 +1,50 @@
+package com.astaro.creativemanager.event;
+
+import com.astaro.creativemanager.CreativeManager;
+import com.astaro.creativemanager.manager.InventoryManager;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerKickEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+
+/**
+ * Player quit/kick event listeners.
+ */
+public class PlayerQuit implements Listener {
+	private final CreativeManager plugin;
+
+	/**
+	 * Instantiates a new Player quit.
+	 *
+	 * @param instance the instance.
+	 */
+	public PlayerQuit(CreativeManager instance) {
+		plugin = instance;
+	}
+
+	/**
+	 * On player quit.
+	 *
+	 * @param e the event.
+	 */
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+	public void onQuit(PlayerQuitEvent e) {
+		Player p = e.getPlayer();
+		InventoryManager im = new InventoryManager(p, plugin);
+		im.saveInventory(p.getGameMode());
+	}
+
+	/**
+	 * On player kicked.
+	 *
+	 * @param e the event.
+	 */
+	@EventHandler(ignoreCancelled = true, priority = EventPriority.MONITOR)
+	public void onKicked(PlayerKickEvent e) {
+		Player p = e.getPlayer();
+		InventoryManager im = new InventoryManager(p, plugin);
+		im.saveInventory(p.getGameMode());
+	}
+}
