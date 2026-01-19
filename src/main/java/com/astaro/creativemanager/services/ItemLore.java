@@ -2,47 +2,46 @@ package com.astaro.creativemanager.services;
 
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.utils.CMUtils;
-import com.astaro.creativemanager.utils.SpigotUtils;
 import com.astaro.creativemanager.utils.TextUtils;
-import org.bukkit.entity.HumanEntity;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class ItemLore {
-    public static void asyncCheck(Player player) {
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (ItemStack content : player.getInventory().getContents()) {
-                    addLore(
-                            content,
-                            player
-                    );
+
+    public static void asyncCheck(CreativeManager plugin, Player player) {
+        // Уходим в асинхрон, чтобы не тормозить сервер расчетами строк
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            List<String> configLore = plugin.getSettings().getLore();
+            if (configLore.isEmpty()) return;
+
+            ItemStack[] contents = player.getInventory().getContents();
+
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                for (ItemStack item : contents) {
+                    if (item == null || item.getType().isAir()) continue;
+                    applyLore(item, player, configLore);
                 }
-            }
-        }.runTaskLaterAsynchronously(CreativeManager.getInstance(), 2L);
+            });
+        });
     }
 
-    private static void addLore(ItemStack itemStack, HumanEntity p) {
-        if (itemStack == null || p == null) return;
-        ItemMeta meta = itemStack.getItemMeta();
+    private static void applyLore(ItemStack item, Player player, List<String> configLore) {
+        ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
 
-        List<String> lore = CreativeManager.getSettings().getLore();
-        List<String> tempLore = new ArrayList<>();
-        if (!lore.isEmpty()) {
-            for (String line : lore) {
-                tempLore.add(getFinalString(line, (Player) p, itemStack));
-            }
-            SpigotUtils.setItemMetaLore(meta, tempLore);
+        List<String> newLore = new ArrayList<>();
+        for (String line : configLore) {
+            newLore.add(getFinalString(line, player, item));
         }
-        itemStack.setItemMeta(meta);
+
+        meta.setLore(newLore);
+        item.setItemMeta(meta);
     }
 
     private static String getFinalString(String string, Player player, ItemStack itemStack) {
@@ -51,6 +50,7 @@ public class ItemLore {
                 Map.of(
                         "PLAYER", player.getName(),
                         "UUID", player.getUniqueId().toString(),
-                        "ITEM", itemStack.getType().name())));
+                        "ITEM", itemStack.getType().name().replace("_", " ").toLowerCase()
+                )));
     }
 }

@@ -3,50 +3,62 @@ package com.astaro.creativemanager.services;
 import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.utils.CMUtils;
 import com.astaro.creativemanager.utils.SearchUtils;
-import fr.k0bus.k0buscore.utils.StringUtils;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ItemBlacklist {
-    public static void asyncCheck(Player player) {
-        if(player.hasPermission("creativemanager.bypass.blacklist.get")) return;
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                for (ItemStack content : player.getInventory().getContents()) {
-                    checkBlacklist(
-                            content,
-                            player,
-                            CreativeManager.getSettings().getGetBL()
-                    );
+
+    /**
+     * Асинхронная проверка инвентаря на наличие запрещенных предметов.
+     */
+    public static void asyncCheck(CreativeManager plugin, Player player) {
+        if (player.hasPermission("creativemanager.bypass.blacklist.get")) return;
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            ItemStack[] contents = player.getInventory().getContents();
+            List<Integer> toRemove = new ArrayList<>();
+
+            // Кэшируем настройки для этого прохода
+            List<String> blacklist = plugin.getSettings().getGetBL();
+            String listMode = plugin.getSettings().getConfig().getString("list.mode.get", "blacklist");
+
+            for (int i = 0; i < contents.length; i++) {
+                ItemStack item = contents[i];
+                if (item == null || item.getType().isAir()) continue;
+
+                if (isBlackListed(player, item, blacklist, listMode)) {
+                    toRemove.add(i);
                 }
             }
-        }.runTaskLaterAsynchronously(CreativeManager.getInstance(), 2L);
+            if (!toRemove.isEmpty()) {
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    for (int slot : toRemove) {
+                        ItemStack item = player.getInventory().getItem(slot);
+                        if (item != null) {
+                            item.setAmount(0);
+                        }
+                    }
+                });
+            }
+        });
     }
 
-    public static void checkBlacklist(ItemStack itemStack, Player player, List<String> blacklist) {
-        if (isBlackListed(itemStack, player, blacklist)) {
-            itemStack.setAmount(0);
-        }
-    }
-
-    private static boolean isBlackListed(ItemStack item, Player player, List<String> blacklist) {
-        if (item == null) {
-            return false;
-        }
+    private static boolean isBlackListed(Player player, ItemStack item, List<String> blacklist, String mode) {
         String itemName = item.getType().name().toLowerCase();
-        if(player.hasPermission("creativemanager.bypass.blacklist.get." + itemName)) return false;
-        if(item.getType().equals(Material.AIR)) return false;
-        if((CreativeManager.getSettings().getConfiguration().getString("list.mode.get").equals("whitelist") && !SearchUtils.inList(blacklist, item)) ||
-                (!CreativeManager.getSettings().getConfiguration().getString("list.mode.get").equals("whitelist") && SearchUtils.inList(blacklist, item))){
-            HashMap<String, String> replaceMap = new HashMap<>();
-            replaceMap.put("{ITEM}", StringUtils.proper(item.getType().name()));
-            CMUtils.sendMessage(player, "blacklist.get", replaceMap);
+
+        if (player.hasPermission("creativemanager.bypass.blacklist.get." + itemName)) return false;
+
+        boolean inList = SearchUtils.inList(blacklist, item);
+        boolean shouldRemove = (mode.equals("whitelist") && !inList) || (mode.equals("blacklist") && inList);
+
+        if (shouldRemove) {
+            CMUtils.sendMessage(player, "blacklist.get", Map.of("{ITEM}", itemName.replace("_", " ")));
             return true;
         }
         return false;
