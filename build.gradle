@@ -31,6 +31,8 @@ dependencies {
     implementation("com.zaxxer:HikariCP:6.2.1")
     implementation("org.mariadb.jdbc:mariadb-java-client:3.5.1")
     implementation("com.mysql:mysql-connector-j:9.5.0")
+    implementation("org.xerial:sqlite-jdbc:3.49.0.0")
+
 
     implementation("fr.k0bus:K0busCore:1.0.2")
     implementation("de.tr7zw:item-nbt-api:2.15.2")
@@ -64,13 +66,13 @@ tasks {
         archiveClassifier.set("")
         var libPath = "fr.k0bus.creativemanager_libs"
 
-        relocate "fr.k0bus.k0buscore", "{$libPath}.k0buscore"
-        relocate "fr.k0bus.k0buscore_libs", "{$libPath}.k0buscore_libs"
-        relocate "org.bstats", "{$libPath}.bstats"
-        relocate "de.tr7zw.changeme", "{$libPath}.tr7zw.lib"
+        relocate "fr.k0bus.k0buscore", "${libPath}.k0buscore"
+        relocate "fr.k0bus.k0buscore_libs", "${libPath}.k0buscore_libs"
+        relocate "org.bstats", "${libPath}.bstats"
+        relocate "de.tr7zw.changeme", "${libPath}.tr7zw.lib"
 
-        relocate "com.zaxxer.hikari", "{$libPath}.hikari"
-        relocate "org.mariadb.jdbc", "{$libPath}.mariadb"
+        relocate "com.zaxxer.hikari", "${libPath}.hikari"
+        relocate "org.mariadb.jdbc", "${libPath}.mariadb"
 
         exclude("dev.dbassett/**")
     }
