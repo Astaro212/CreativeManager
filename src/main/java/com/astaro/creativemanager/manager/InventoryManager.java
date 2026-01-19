@@ -1,6 +1,7 @@
 package com.astaro.creativemanager.manager;
 
 import com.astaro.creativemanager.CreativeManager;
+import com.astaro.creativemanager.data.BlockLogRepository;
 import com.astaro.creativemanager.utils.InventoryUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
@@ -38,7 +39,7 @@ public class InventoryManager {
         String armor = InventoryUtils.itemStackArrayToBase64(player.getInventory().getArmorContents());
 
         return CompletableFuture.runAsync(() -> {
-            String sql = "REPLACE INTO player_inventories (uuid, gamemode, content, armor) VALUES (?, ?, ?, ?)";
+            String sql = "REPLACE INTO " + plugin.getRepo().getInvPrefix() + " (uuid, gamemode, content, armor) VALUES (?, ?, ?, ?)";
             try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, uuid);
                 ps.setString(2, gmName);
@@ -56,7 +57,7 @@ public class InventoryManager {
         String gmName = gm.name();
 
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT content, armor FROM player_inventories WHERE uuid = ? AND gamemode = ?";
+            String sql = "SELECT content, armor FROM " + plugin.getRepo().getInvPrefix() + " WHERE uuid = ? AND gamemode = ?";
             try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, uuid);
                 ps.setString(2, gmName);
@@ -83,7 +84,7 @@ public class InventoryManager {
 
     public CompletableFuture<Boolean> hasContentAsync(UUID uuid) {
         return CompletableFuture.supplyAsync(() -> {
-            String sql = "SELECT 1 FROM player_inventories WHERE uuid = ? LIMIT 1";
+            String sql = "SELECT 1 FROM " + plugin.getRepo().getInvPrefix() + " WHERE uuid = ? LIMIT 1";
             try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, uuid.toString());
                 try (ResultSet rs = ps.executeQuery()) { return rs.next(); }

@@ -1,5 +1,6 @@
 package com.astaro.creativemanager.data;
 
+import com.astaro.creativemanager.CreativeManager;
 import com.astaro.creativemanager.manager.DatabaseManager;
 
 import java.sql.*;
@@ -12,18 +13,23 @@ import java.util.concurrent.CompletableFuture;
 public class BlockLogRepository {
 
     private final DatabaseManager db;
+    private final String logPrefix;
+    private final String invPrefix;
 
-    public BlockLogRepository(DatabaseManager db) {
+
+    public BlockLogRepository(DatabaseManager db, CreativeManager plugin) {
         this.db = db;
+        this.logPrefix = plugin.getSettings().getConfig().getConfigurationSection("mysql").getString("log_table_prefix") + "block_log";
+        invPrefix = plugin.getSettings().getConfig().getConfigurationSection("mysql").getString("inventory_table_prefix") + "player_inventories";
         initTable();
     }
 
     public void initTable() {
         try (Connection conn = db.getConnection(); Statement s = conn.createStatement()) {
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS block_log (" +
+            s.executeUpdate("CREATE TABLE IF NOT EXISTS " + logPrefix + " (" +
                     "world VARCHAR(64), x INT, y INT, z INT, player VARCHAR(36), " +
                     "PRIMARY KEY (world, x, y, z))");
-            s.executeUpdate("CREATE TABLE IF NOT EXISTS player_inventories (" +
+            s.executeUpdate("CREATE TABLE IF NOT EXISTS " + invPrefix + " (" +
                     "uuid VARCHAR(36)NOT NULL," +
                     "gamemode VARCHAR(20)NOT NULL," +
                     "content LONGTEXT NOT NULL," +
@@ -36,7 +42,7 @@ public class BlockLogRepository {
     }
 
     public void saveBatch(Collection<BlockLog> logs) {
-        String sql = "REPLACE INTO block_log (world, x, y, z, player) VALUES (?, ?, ?, ?, ?)";
+        String sql = "REPLACE INTO "+ logPrefix + " (world, x, y, z, player) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             conn.setAutoCommit(false);
             for (BlockLog log : logs) {
@@ -55,7 +61,7 @@ public class BlockLogRepository {
     }
 
     public void delete(String world, int x, int y, int z) {
-        String sql = "DELETE FROM block_log WHERE world=? AND x=? AND y=? AND z=?";
+        String sql = "DELETE FROM " + logPrefix + " WHERE world=? AND x=? AND y=? AND z=?";
         try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, world);
             ps.setInt(2, x);
@@ -68,7 +74,7 @@ public class BlockLogRepository {
     }
 
     public boolean exists(String world, int x, int y, int z) {
-        String sql = "SELECT 1 FROM block_log WHERE world=? AND x=? AND y=? AND z=? LIMIT 1";
+        String sql = "SELECT 1 FROM " + logPrefix + " WHERE world=? AND x=? AND y=? AND z=? LIMIT 1";
         try (Connection conn = db.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, world);
             ps.setInt(2, x);
@@ -86,7 +92,7 @@ public class BlockLogRepository {
     public CompletableFuture<List<BlockLog>> loadChunk(String world, int cx, int cz) {
         return CompletableFuture.supplyAsync(() -> {
             List<BlockLog> logs = new ArrayList<>();
-            String sql = "SELECT * FROM block_log WHERE world = ? AND x >= ? AND x <= ? AND z >= ? AND z <= ?";
+            String sql = "SELECT * FROM " + logPrefix + " WHERE world = ? AND x >= ? AND x <= ? AND z >= ? AND z <= ?";
 
             int minX = cx * 16;
             int maxX = minX + 15;
@@ -119,7 +125,7 @@ public class BlockLogRepository {
     }
 
     public int getTotalEntries() {
-        String sql = "SELECT COUNT(*) FROM block_log";
+        String sql = "SELECT COUNT(*) FROM " + logPrefix;
         try (Connection conn = db.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
@@ -128,6 +134,10 @@ public class BlockLogRepository {
             e.printStackTrace();
         }
         return 0;
+    }
+
+    public  String getInvPrefix(){
+        return invPrefix;
     }
 
 

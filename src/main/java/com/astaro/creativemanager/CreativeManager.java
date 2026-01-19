@@ -77,7 +77,7 @@ public class CreativeManager extends JavaPlugin {
         getComponentLogger().info(serializer.deserialize("&2Loading config file"));
         this.loadConfigManager();
         manager = new DatabaseManager(this);
-        repo = new BlockLogRepository(this.manager);
+        repo = new BlockLogRepository(this.manager, this);
         service = new BlockLogService(this, this.repo);
         invmanager = new InventoryManager(this, manager);
         this.registerEvent(this.getServer().getPluginManager());
@@ -277,6 +277,10 @@ public class CreativeManager extends JavaPlugin {
 
     public BlockLogService getBlockLogService() {
         return service;
+    }
+
+    public BlockLogRepository getRepo() {
+        return repo;
     }
 
     public InventoryManager getInvManager() {

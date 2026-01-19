@@ -15,9 +15,11 @@ mysql:
   type: mariadb
   host: localhost
   port: 3306
-  database: cm_1_logs
+  database: minecraft
   username: minecraft
   password: your_secret_password
+  log_table_prefix: cm1_
+  inventory_table_prefix: cm1_
 ## Protection module
 protections:
   container: true #Bypass : creativemanager.bypass.container
