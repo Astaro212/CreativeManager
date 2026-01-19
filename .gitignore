@@ -6,4 +6,6 @@
 CreativeManager.iml
 .classpath
 .project
-/dependency-reduced-pom.xml
+/gradle/
+/.gradle/
+/build/
