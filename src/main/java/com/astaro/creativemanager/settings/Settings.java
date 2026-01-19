@@ -1,22 +1,67 @@
 package com.astaro.creativemanager.settings;
 
 import com.astaro.creativemanager.CreativeManager;
-import fr.k0bus.k0buscore.config.Configuration;
-import fr.k0bus.k0buscore.utils.StringUtils;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.configuration.Configuration;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 /**
  * Settings class.
  */
-public class Settings extends Configuration {
+public class Settings {
+
+    private final CreativeManager cm;
+    private FileConfiguration config;
+    private File configFile;
+
     /**
      * Instantiates a new Settings.
      *
      * @param instance the instance
      */
     public Settings(CreativeManager instance) {
-        super("config.yml", instance);
+        this.cm = instance;
+        this.saveDefaultConfig();
+        this.reload();
+    }
+
+    /**
+     * Reloads configuration
+     */
+    public void reload() {
+        if (configFile == null) {
+            configFile = new File(cm.getDataFolder(), "config.yml");
+        }
+        config = YamlConfiguration.loadConfiguration(configFile);
+    }
+
+    /**
+     * Save current config
+     */
+    public void save() {
+        try {
+            config.save(configFile);
+        } catch (IOException e) {
+            cm.getLogger().severe("Could not save config.yml");
+        }
+    }
+
+    /**
+     * Save default config file
+     */
+    public void saveDefaultConfig() {
+        if (!cm.getDataFolder().exists()) cm.getDataFolder().mkdirs();
+        File file = new File(cm.getDataFolder(), "config.yml");
+        if (!file.exists()) {
+            cm.saveResource("config.yml", false);
+        }
     }
 
     /**
@@ -26,17 +71,17 @@ public class Settings extends Configuration {
      * @return the protection.
      */
     public boolean getProtection(Protections protections) {
-        return getConfiguration().getBoolean("protections." + protections.getName());
+        return config.getBoolean("protections." + protections.getName());
     }
 
     /**
      * Gets protection.
      *
      * @param protections the protections.
-     * @param value the protections.
+     * @param value       the protections.
      */
     public void setProtection(Protections protections, boolean value) {
-        getConfiguration().set("protections." + protections.getName(), value);
+        config.set("protections." + protections.getName(), value);
     }
 
     /**
@@ -45,7 +90,7 @@ public class Settings extends Configuration {
      * @return True if yes, otherwise false.
      */
     public boolean creativeInvEnable() {
-        return getConfiguration().getBoolean("inventory.creative");
+        return config.getBoolean("inventory.creative");
     }
 
     /**
@@ -54,7 +99,7 @@ public class Settings extends Configuration {
      * @return True if yes, otherwise false.
      */
     public boolean adventureInvEnable() {
-        return getConfiguration().getBoolean("inventory.adventure");
+        return config.getBoolean("inventory.adventure");
     }
 
     /**
@@ -63,7 +108,7 @@ public class Settings extends Configuration {
      * @return True if yes, otherwise false.
      */
     public boolean spectatorInvEnable() {
-        return getConfiguration().getBoolean("inventory.spectator");
+        return config.getBoolean("inventory.spectator");
     }
 
     /**
@@ -72,7 +117,7 @@ public class Settings extends Configuration {
      * @return the placed blocks.
      */
     public List<String> getPlaceBL() {
-        return getConfiguration().getStringList("list.place");
+        return config.getStringList("list.place");
     }
 
     /**
@@ -81,7 +126,7 @@ public class Settings extends Configuration {
      * @return the use blacklist.
      */
     public List<String> getUseBL() {
-        return getConfiguration().getStringList("list.use");
+        return config.getStringList("list.use");
     }
 
     /**
@@ -90,7 +135,7 @@ public class Settings extends Configuration {
      * @return the use blacklist.
      */
     public List<String> getUseBlockBL() {
-        return getConfiguration().getStringList("list.useblock");
+        return config.getStringList("list.useblock");
     }
 
     /**
@@ -99,7 +144,7 @@ public class Settings extends Configuration {
      * @return the get blacklist.
      */
     public List<String> getGetBL() {
-        return getConfiguration().getStringList("list.get");
+        return config.getStringList("list.get");
     }
 
     /**
@@ -108,7 +153,7 @@ public class Settings extends Configuration {
      * @return the break blacklist.
      */
     public List<String> getBreakBL() {
-        return getConfiguration().getStringList("list.break");
+        return config.getStringList("list.break");
     }
 
     /**
@@ -117,7 +162,7 @@ public class Settings extends Configuration {
      * @return the command blacklist.
      */
     public List<String> getCommandBL() {
-        return getConfiguration().getStringList("list.commands");
+        return config.getStringList("list.commands");
     }
 
     /**
@@ -126,7 +171,7 @@ public class Settings extends Configuration {
      * @return the command blacklist.
      */
     public List<String> getNBTWhitelist() {
-        return getConfiguration().getStringList("list.nbt-whitelist");
+        return config.getStringList("list.nbt-whitelist");
     }
 
     /**
@@ -135,14 +180,48 @@ public class Settings extends Configuration {
      * @return the lore.
      */
     public List<String> getLore() {
-        return getConfiguration().getStringList("creative-lore");
+        return config.getStringList("creative-lore");
     }
 
     public String getLang() {
-        return getConfiguration().getString("lang");
+        return config.getString("lang");
     }
-    public String getTag()
-    {
-        return StringUtils.translateColor(getConfiguration().getString("tag"));
+
+    public Component getTag() {
+        String tag = config.getString("tag", "<gray>[<green>CreativeManager</green>]</gray> ");
+        return MiniMessage.miniMessage().deserialize(tag);
     }
+
+    public Configuration getConfig() {
+        return this.config;
+    }
+
+    public record DatabaseCreds(
+            boolean enabled,
+            String type,
+            String host,
+            int port,
+            String database,
+            String username,
+            String password
+    ) {
+    }
+
+    public DatabaseCreds getDatabaseCreds() {
+        ConfigurationSection msec = config.getConfigurationSection("mysql");
+        if (msec == null) {
+            return new DatabaseCreds(false, "mysql", "localhost", 3306, "cm_log", "minecraft", "minecraft1");
+        }
+        return new DatabaseCreds(
+                msec.getBoolean("enabled", false),
+                msec.getString("type"),
+                msec.getString("host"),
+                msec.getInt("port"),
+                msec.getString("database"),
+                msec.getString("username"),
+                msec.getString("password")
+        );
+    }
+
+
 }
