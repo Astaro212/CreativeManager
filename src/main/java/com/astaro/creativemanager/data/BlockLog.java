@@ -1,4 +1,4 @@
-package com.astaro.creativemanager.log;
+package com.astaro.creativemanager.data;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
