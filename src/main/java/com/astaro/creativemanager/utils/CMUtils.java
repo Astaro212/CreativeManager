@@ -2,23 +2,25 @@ package com.astaro.creativemanager.utils;
 
 import com.astaro.creativemanager.CreativeManager;
 import fr.k0bus.k0buscore.utils.StringUtils;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.command.CommandSender;
 
 import java.util.Map;
 
 public class CMUtils {
+    public static LegacyComponentSerializer serializer = LegacyComponentSerializer.legacyAmpersand();
 
     public static void sendMessage(CommandSender messageTo, String text) {
         String langMsg = CreativeManager.getLang().getString(text);
         if (langMsg != null && !langMsg.isEmpty()) {
-            messageTo.sendMessage(parse(StringUtils.parse(langMsg)));
+            messageTo.sendMessage(serializer.deserialize(parse(StringUtils.parse(langMsg))));
         }
     }
 
     public static void sendMessage(CommandSender messageTo, String text, Map<String, String> replaceMap) {
         String langMsg = CreativeManager.getLang().getString(text);
         if (langMsg != null && !langMsg.isEmpty()) {
-            messageTo.sendMessage(parse(StringUtils.parse(langMsg), replaceMap));
+            messageTo.sendMessage(serializer.deserialize(parse(StringUtils.parse(langMsg), replaceMap)));
         }
     }
 

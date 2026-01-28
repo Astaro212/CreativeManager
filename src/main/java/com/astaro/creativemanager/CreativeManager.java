@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 public class CreativeManager extends JavaPlugin {
 
@@ -249,7 +250,12 @@ public class CreativeManager extends JavaPlugin {
 
     private void loadLog() {
         Bukkit.getScheduler().runTaskAsynchronously(this, () -> {
-            int total = repo.getTotalEntries();
+            int total = 0;
+            try {
+                total = repo.getTotalEntries().get();
+            } catch (InterruptedException | ExecutionException e) {
+               e.printStackTrace();
+            }
             getComponentLogger().info(serializer.deserialize("Database contains " + total + " creative block logs."));
         });
     }

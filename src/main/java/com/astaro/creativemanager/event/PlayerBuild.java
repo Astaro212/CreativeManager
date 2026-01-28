@@ -34,27 +34,23 @@ public class PlayerBuild implements Listener {
 		Player p = e.getPlayer();
 		Block block = e.getBlock();
 		GameMode gm = p.getGameMode();
-
 		if (gm == GameMode.CREATIVE) {
 			if (settings.getProtection(Protections.BUILD) && !p.hasPermission("creativemanager.bypass.build")) {
 				sendCreativeMessage(p, "permission.build");
 				e.setCancelled(true);
 				return;
 			}
-
 			if (isBlacklisted(p, block)) {
 				sendCreativeMessage(p, "blacklist.place");
 				e.setCancelled(true);
 				return;
 			}
-
 			if (settings.getProtection(Protections.BUILD_CONTAINER) && !p.hasPermission("creativemanager.bypass.build-container")) {
 				if (block.getState() instanceof Container container) {
 					container.getInventory().clear();
 					container.update();
 				}
 			}
-
 			if (!p.hasPermission("creativemanager.bypass.logged")) {
 				List<Block> structure = BlockUtils.getBlockStructure(block);
 				for (Block b : structure) {
@@ -62,7 +58,6 @@ public class PlayerBuild implements Listener {
 				}
 			}
 		}
-
 		else {
 			if (logService.isCreativeBlock(block.getLocation())) {
 				logService.removeLog(block.getLocation());

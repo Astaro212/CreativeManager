@@ -31,35 +31,27 @@ public class PlayerBreak implements Listener {
         Block block = e.getBlock();
         Location loc = block.getLocation();
         GameMode gm = p.getGameMode();
-
         if (gm == GameMode.CREATIVE) {
             if (plugin.getSettings().getProtection(Protections.BUILD) && !p.hasPermission("creativemanager.bypass.build")) {
                 e.setCancelled(true);
                 return;
             }
-
             if (isBlacklisted(p, block)) {
                 e.setCancelled(true);
                 return;
             }
-
             if (logService.isCreativeBlock(loc)) {
                 logService.removeLog(loc);
             }
             return;
         }
-
         if (logService.isCreativeBlock(loc)) {
-
             if (!p.hasPermission("creativemanager.bypass.break-creative")) {
-
                 if (plugin.getSettings().getProtection(Protections.LOOT)) {
                     e.setDropItems(false);
                     e.setExpToDrop(0);
-
                     block.setType(Material.AIR);
                     logService.removeLog(loc);
-
                     e.setCancelled(true);
                 }
             } else {
@@ -70,13 +62,10 @@ public class PlayerBreak implements Listener {
 
     private boolean isBlacklisted(Player p, Block b) {
         if (p.hasPermission("creativemanager.bypass.blacklist.break")) return false;
-
         String blockName = b.getType().name().toLowerCase();
         if (p.hasPermission("creativemanager.bypass.blacklist.break." + blockName)) return false;
-
         List<String> blacklist = plugin.getSettings().getBreakBL();
         String mode = plugin.getSettings().getConfig().getString("list.mode.break", "blacklist");
-
         boolean inList = SearchUtils.inList(blacklist, b);
         return mode.equalsIgnoreCase("whitelist") ? !inList : inList;
     }

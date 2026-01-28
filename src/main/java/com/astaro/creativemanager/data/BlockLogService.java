@@ -21,7 +21,7 @@ public class BlockLogService {
 
     private final Cache<Long, UUID> cache = Caffeine.newBuilder()
             .expireAfterAccess(10, TimeUnit.MINUTES)
-            .maximumSize(200_000) // Увеличили для 2026 года, так как Long->UUID очень легкие
+            .maximumSize(200_000)
             .build();
 
     public BlockLogService(CreativeManager plugin, BlockLogRepository repository) {
@@ -61,10 +61,7 @@ public class BlockLogService {
     public CompletableFuture<Boolean> isCreativeAsync(Location loc) {
         UUID cached = cache.getIfPresent(getBlockKey(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()));
         if (cached != null) return CompletableFuture.completedFuture(true);
-
-        return CompletableFuture.supplyAsync(() ->
-                repository.exists(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ())
-        );
+        return repository.exists(loc.getWorld().getName(), loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
     }
 
     public void removeLog(Location loc) {
